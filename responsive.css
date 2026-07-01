@@ -1,0 +1,81 @@
+/* ============================================
+   SmartTeacher — Responsive Rules
+   ============================================ */
+
+/* ---- Large desktops: tighten stat grid slightly ---- */
+@media (max-width: 1280px) {
+  .stats-grid { grid-template-columns: repeat(3, 1fr); }
+  .filiere-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ---- Tablets ---- */
+@media (max-width: 1024px) {
+  :root { --sidebar-width: 240px; }
+
+  .columns-grid { grid-template-columns: 1fr; }
+  .topbar { padding: 0 var(--space-5); }
+  .content { padding: 0 var(--space-5) var(--space-7); }
+}
+
+/* ---- Small tablets / sidebar collapses to off-canvas ---- */
+@media (max-width: 860px) {
+  .sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    transform: translateX(-100%);
+    transition: transform var(--transition-base);
+    z-index: 200;
+  }
+  .sidebar.is-open { transform: translateX(0); }
+
+  .sidebar__toggle { display: none; }
+  .mobile-menu-btn { display: flex; align-items: center; justify-content: center; }
+
+  .sidebar-overlay.is-visible { display: block; }
+
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .filiere-grid { grid-template-columns: 1fr; }
+
+  .date-pill__text { display: none; }
+  .date-pill { padding: var(--space-2); }
+}
+
+/* ---- Mobile ---- */
+@media (max-width: 600px) {
+  .topbar { height: auto; padding: var(--space-4); flex-wrap: wrap; gap: var(--space-3); }
+  .topbar__title { font-size: var(--fs-lg); }
+
+  .content { padding: 0 var(--space-4) var(--space-6); gap: var(--space-4); }
+
+  .banner { flex-direction: column; align-items: flex-start; text-align: left; padding: var(--space-5); gap: var(--space-3); }
+  .banner__illustration { font-size: 3rem; align-self: flex-end; }
+  .banner__text h2 { font-size: var(--fs-lg); }
+
+  .stats-grid { grid-template-columns: 1fr 1fr; gap: var(--space-3); }
+  .stat-card { padding: var(--space-4); }
+  .stat-card__value { font-size: var(--fs-xl); }
+
+  .panel { padding: var(--space-4); }
+
+  .actions-row { flex-direction: column; }
+  .action-btn { width: 100%; justify-content: center; }
+
+  .payment-item, .absence-item { flex-wrap: wrap; }
+}
+
+/* ---- Very small mobile ---- */
+@media (max-width: 420px) {
+  .stats-grid { grid-template-columns: 1fr; }
+  .topbar__right .icon-btn:nth-child(3) { display: none; }
+}
+
+/* ---- Reduced motion ---- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

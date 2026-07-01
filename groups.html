@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Groupes — SmartTeacher</title>
+<style>
+  :root{
+    --purple:#6C5CE7;
+    --purple-light:#EFEBFD;
+    --purple-dark:#5A4BD1;
+    --blue:#3B82F6;
+    --blue-light:#E8F0FE;
+    --green:#16A34A;
+    --green-light:#E8F8ED;
+    --orange:#EA8C1F;
+    --orange-light:#FDF1E1;
+    --red:#E23B3B;
+    --red-light:#FBE9E9;
+    --pink:#E85D9C;
+    --pink-light:#FCEAF3;
+    --bg:#F4F5FA;
+    --card:#FFFFFF;
+    --border:#E7E8F0;
+    --text:#1E1F2B;
+    --text-muted:#8B8D9C;
+    --text-soft:#5B5D6E;
+    --radius-lg:18px;
+    --radius-md:12px;
+    --radius-sm:8px;
+    --shadow: 0 1px 2px rgba(20,20,43,0.04), 0 8px 24px -12px rgba(20,20,43,0.08);
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:'Segoe UI', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    padding:28px 32px 60px;
+  }
+
+  .page{max-width:1300px;margin:0 auto;}
+
+  /* ===== Top bar ===== */
+  .topbar{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    margin-bottom:26px;
+    flex-wrap:wrap;
+    gap:16px;
+  }
+  .title-block h1{
+    font-size:28px;
+    margin:0 0 6px;
+    font-weight:700;
+    letter-spacing:-0.5px;
+  }
+  .breadcrumb{
+    color:var(--text-muted);
+    font-size:14px;
+  }
+  .breadcrumb a{color:var(--text-muted);text-decoration:none;transition:color .15s ease;}
+  .breadcrumb a:hover{color:var(--purple);}
+  .breadcrumb span.current{color:var(--text-soft);}
+
+  .topbar-right{
+    display:flex;
+    align-items:center;
+    gap:14px;
+  }
+  .search-box{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:10px 16px;
+    min-width:230px;
+    color:var(--text-muted);
+    font-size:14px;
+  }
+  .search-box input{
+    border:none;
+    outline:none;
+    background:transparent;
+    font-size:14px;
+    width:100%;
+    color:var(--text);
+  }
+  .icon-btn{
+    position:relative;
+    width:42px;
+    height:42px;
+    border-radius:12px;
+    background:var(--card);
+    border:1px solid var(--border);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+    flex-shrink:0;
+  }
+  .icon-btn .badge{
+    position:absolute;
+    top:-6px;
+    right:-6px;
+    background:var(--purple);
+    color:white;
+    font-size:11px;
+    font-weight:700;
+    width:18px;height:18px;
+    border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .date-pill{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:10px 16px;
+    font-size:14px;
+    color:var(--text-soft);
+    white-space:nowrap;
+  }
+  .avatar-btn{
+    width:42px;height:42px;
+    border-radius:12px;
+    background:#2B2C3A;
+    color:white;
+    display:flex;align-items:center;justify-content:center;
+    font-weight:700;
+    font-size:14px;
+    cursor:pointer;
+    flex-shrink:0;
+  }
+
+  /* ===== Filière picker ===== */
+  .panel{
+    background:var(--card);
+    border-radius:var(--radius-lg);
+    border:1px solid var(--border);
+    padding:24px;
+    margin-bottom:22px;
+    box-shadow:var(--shadow);
+  }
+  .panel h2{
+    margin:0 0 4px;
+    font-size:18px;
+    font-weight:700;
+  }
+  .panel .sub{
+    margin:0 0 18px;
+    color:var(--text-muted);
+    font-size:14px;
+  }
+  .filiere-grid{
+    display:grid;
+    grid-template-columns:repeat(5,1fr);
+    gap:16px;
+  }
+  .filiere-card{
+    position:relative;
+    border:1.5px solid var(--border);
+    border-radius:var(--radius-md);
+    padding:22px 16px;
+    text-align:center;
+    cursor:pointer;
+    transition:all .15s ease;
+    background:var(--card);
+  }
+  .filiere-card:hover{border-color:#CFCBEF;}
+  .filiere-card.active{
+    border-color:var(--purple);
+    background:var(--purple-light);
+  }
+  .filiere-check{
+    display:none;
+    position:absolute;
+    top:10px;right:10px;
+    width:20px;height:20px;
+    border-radius:50%;
+    background:var(--purple);
+    color:white;
+    align-items:center;justify-content:center;
+    font-size:12px;
+  }
+  .filiere-card.active .filiere-check{display:flex;}
+  .filiere-icon{
+    width:52px;height:52px;
+    border-radius:14px;
+    display:flex;align-items:center;justify-content:center;
+    margin:0 auto 12px;
+  }
+  .filiere-card[data-icon-bg="purple"] .filiere-icon{background:var(--purple-light);color:var(--purple);}
+  .filiere-card[data-icon-bg="blue"] .filiere-icon{background:var(--blue-light);color:var(--blue);}
+  .filiere-card[data-icon-bg="green"] .filiere-icon{background:var(--green-light);color:#1E9E4C;}
+  .filiere-card[data-icon-bg="orange"] .filiere-icon{background:var(--orange-light);color:var(--orange);}
+  .filiere-card[data-icon-bg="pink"] .filiere-icon{background:var(--pink-light);color:var(--pink);}
+  .filiere-name{font-weight:700;font-size:15px;margin-bottom:4px;}
+  .filiere-count{font-size:13px;color:var(--text-muted);}
+
+  /* ===== Stats section ===== */
+  .stats-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:20px;
+    flex-wrap:wrap;
+    gap:12px;
+  }
+  .stats-header h2{margin:0;font-size:20px;font-weight:700;}
+  .btn-primary{
+    background:var(--purple);
+    color:white;
+    border:none;
+    padding:12px 20px;
+    border-radius:12px;
+    font-size:14px;
+    font-weight:600;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    cursor:pointer;
+    transition:background .15s ease;
+  }
+  .btn-primary:hover{background:var(--purple-dark);}
+
+  .stats-grid{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:16px;
+    margin-bottom:24px;
+  }
+  .stat-card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:var(--radius-md);
+    padding:20px;
+    display:flex;
+    align-items:center;
+    gap:14px;
+  }
+  .stat-icon{
+    width:48px;height:48px;
+    border-radius:12px;
+    display:flex;align-items:center;justify-content:center;
+    flex-shrink:0;
+  }
+  .stat-icon.purple{background:var(--purple-light);color:var(--purple);}
+  .stat-icon.blue{background:var(--blue-light);color:var(--blue);}
+  .stat-icon.green{background:var(--green-light);color:var(--green);}
+  .stat-icon.orange{background:var(--orange-light);color:var(--orange);}
+  .stat-value{font-size:24px;font-weight:700;line-height:1.2;}
+  .stat-label{font-size:13px;color:var(--text-muted);margin-top:2px;}
+
+  /* ===== Table controls ===== */
+  .table-controls{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:16px;
+    flex-wrap:wrap;
+    gap:12px;
+  }
+  .group-select-wrap{
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .group-select-wrap label{font-size:14px;color:var(--text-soft);font-weight:600;}
+  select#groupFilter{
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:10px 14px;
+    font-size:14px;
+    background:var(--card);
+    color:var(--text);
+    min-width:170px;
+    cursor:pointer;
+  }
+  .table-search{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:10px 14px;
+    min-width:230px;
+    color:var(--text-muted);
+  }
+  .table-search input{
+    border:none;outline:none;background:transparent;font-size:14px;width:100%;color:var(--text);
+  }
+
+  /* ===== Table ===== */
+  .table-wrap{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:var(--radius-lg);
+    overflow:hidden;
+    box-shadow:var(--shadow);
+  }
+  table{width:100%;border-collapse:collapse;}
+  thead th{
+    text-align:left;
+    font-size:13px;
+    color:var(--text-muted);
+    font-weight:600;
+    padding:16px 24px;
+    background:#FAFAFD;
+    border-bottom:1px solid var(--border);
+  }
+  tbody td{
+    padding:14px 24px;
+    font-size:14px;
+    border-bottom:1px solid var(--border);
+    color:var(--text);
+  }
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:#FAFAFD;}
+
+  .student-cell{display:flex;align-items:center;gap:12px;}
+  .avatar{
+    width:38px;height:38px;
+    border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    color:white;font-weight:700;font-size:14px;
+    flex-shrink:0;
+  }
+  .student-name{font-weight:600;}
+
+  .group-badge{
+    background:var(--purple-light);
+    color:var(--purple);
+    padding:5px 12px;
+    border-radius:8px;
+    font-size:13px;
+    font-weight:600;
+    display:inline-block;
+  }
+
+  .status-pill{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding:6px 12px;
+    border-radius:20px;
+    font-size:13px;
+    font-weight:600;
+  }
+  .status-pill.paye{background:var(--green-light);color:#1E9E4C;}
+  .status-pill.attente{background:var(--orange-light);color:var(--orange);}
+  .status-pill.retard{background:var(--red-light);color:var(--red);}
+  .status-dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex-shrink:0;}
+
+  .kebab{
+    cursor:pointer;
+    color:var(--text-muted);
+    width:32px;height:32px;
+    border-radius:8px;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .kebab:hover{background:var(--bg);color:var(--text);}
+
+  .empty-row td{
+    text-align:center;
+    color:var(--text-muted);
+    padding:40px 24px;
+    font-size:14px;
+  }
+
+  @media (max-width:1100px){
+    .filiere-grid{grid-template-columns:repeat(3,1fr);}
+    .stats-grid{grid-template-columns:repeat(2,1fr);}
+  }
+  @media (max-width:640px){
+    body{padding:18px;}
+    .filiere-grid{grid-template-columns:repeat(2,1fr);}
+    .stats-grid{grid-template-columns:1fr;}
+    thead{display:none;}
+    table, tbody, tr, td{display:block;width:100%;}
+    tbody tr{border-bottom:1px solid var(--border);padding:12px 0;}
+    tbody td{border:none;padding:6px 24px;}
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ===== Top bar ===== -->
+  <div class="topbar">
+    <div class="title-block">
+      <h1>Groupes</h1>
+      <div class="breadcrumb"><a href="dashboard.html">Dashboard</a> &nbsp;›&nbsp; <span class="current">Groupes</span></div>
+    </div>
+    <div class="topbar-right">
+      <div class="search-box">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" placeholder="Rechercher...">
+      </div>
+      <div class="icon-btn" title="Notifications">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span class="badge">3</span>
+      </div>
+      <div class="date-pill">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <span id="todayDate">30 Juin 2026</span>
+      </div>
+      <div class="avatar-btn">A</div>
+    </div>
+  </div>
+
+  <!-- ===== Filière picker ===== -->
+  <div class="panel">
+    <h2>Choisir une filière</h2>
+    <p class="sub">Sélectionnez une filière pour voir ses groupes</p>
+    <div class="filiere-grid" id="filiereGrid"></div>
+  </div>
+
+  <!-- ===== Filière detail ===== -->
+  <div class="panel">
+    <div class="stats-header">
+      <h2 id="filiereTitle">Filière : Informatique</h2>
+      <button class="btn-primary" id="filterToggleBtn">
+        Filtrer l'affichage
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+      </button>
+    </div>
+
+    <div class="stats-grid" id="statsGrid"></div>
+
+    <div class="table-controls">
+      <div class="group-select-wrap">
+        <label for="groupFilter">Groupe</label>
+        <select id="groupFilter"></select>
+      </div>
+      <div class="table-search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="studentSearch" placeholder="Rechercher un élève...">
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Nom et prénom</th>
+            <th>Téléphone</th>
+            <th>Groupe</th>
+            <th>Statut de paiement</th>
+          </tr>
+        </thead>
+        <tbody id="studentsTbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ============ DATA ============ */
+const ICONS = {
+  laptop: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="14" rx="2"/><line x1="2" y1="20" x2="22" y2="20"/></svg>',
+  calendar: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+  flask: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 2v6L4 18a2 2 0 0 0 2 3h12a2 2 0 0 0 2-3l-5-10V2"/><line x1="9" y1="2" x2="15" y2="2"/></svg>',
+  atom: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><ellipse cx="12" cy="12" rx="10" ry="4.5"/><ellipse cx="12" cy="12" rx="10" ry="4.5" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="10" ry="4.5" transform="rotate(120 12 12)"/></svg>',
+  compass: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="7" r="2"/><path d="M12 9 4 20h16z"/></svg>',
+  gear: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+  book: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>',
+  users: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+  check: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
+  user: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'
+};
+
+const AVATAR_COLORS = ['#6C5CE7','#3B82F6','#16A34A','#E85D9C','#EA8C1F','#E23B3B','#0EA5A5'];
+function initials(name){
+  return name.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
+}
+function colorFor(name){
+  let sum = 0;
+  for(const c of name) sum += c.charCodeAt(0);
+  return AVATAR_COLORS[sum % AVATAR_COLORS.length];
+}
+
+const FILIERES = {
+  informatique: {
+    name:'Informatique', icon:'laptop', iconBg:'purple',
+    groups:['Bac Informatique - Groupe A','Bac Informatique - Groupe B'],
+    students:[
+      {name:'Achref Ben Ali', phone:'55 123 456', group:'Bac Informatique - Groupe A', status:'paye'},
+      {name:'Meriem Trabelsi', phone:'54 987 654', group:'Bac Informatique - Groupe A', status:'attente'},
+      {name:'Yassine Kacem', phone:'53 456 789', group:'Bac Informatique - Groupe A', status:'paye'},
+      {name:'Ines Bouazizi', phone:'52 789 123', group:'Bac Informatique - Groupe A', status:'retard'},
+      {name:'Mohamed Saidi', phone:'50 321 654', group:'Bac Informatique - Groupe A', status:'paye'},
+      {name:'Rania Fersi', phone:'58 741 852', group:'Bac Informatique - Groupe B', status:'paye'},
+      {name:'Amine Gharbi', phone:'59 963 741', group:'Bac Informatique - Groupe B', status:'attente'}
+    ]
+  },
+  mathematiques: {
+    name:'Mathématiques', icon:'compass', iconBg:'blue',
+    groups:['Bac Mathématiques - Groupe A'],
+    students:[
+      {name:'Karim Bouazizi', phone:'22 111 222', group:'Bac Mathématiques - Groupe A', status:'paye'},
+      {name:'Nour Cherni', phone:'23 333 444', group:'Bac Mathématiques - Groupe A', status:'retard'}
+    ]
+  },
+  sciences: {
+    name:'Sciences', icon:'flask', iconBg:'green',
+    groups:['Bac Sciences - Groupe A'],
+    students:[
+      {name:'Wael Sahli', phone:'25 777 888', group:'Bac Sciences - Groupe A', status:'attente'},
+      {name:'Emna Rekik', phone:'26 999 000', group:'Bac Sciences - Groupe A', status:'paye'}
+    ]
+  },
+  technique: {
+    name:'Technique', icon:'gear', iconBg:'orange',
+    groups:['Bac Technique - Groupe A'],
+    students:[
+      {name:'Firas Hammami', phone:'27 121 212', group:'Bac Technique - Groupe A', status:'paye'},
+      {name:'Dorra Ayari', phone:'28 343 434', group:'Bac Technique - Groupe A', status:'retard'}
+    ]
+  }
+};
+
+let currentFiliere = 'informatique';
+
+/* ============ RENDER FILIÈRE CARDS ============ */
+function renderFiliereGrid(){
+  const grid = document.getElementById('filiereGrid');
+  grid.innerHTML = '';
+  Object.entries(FILIERES).forEach(([key, f])=>{
+    const card = document.createElement('div');
+    card.className = 'filiere-card' + (key === currentFiliere ? ' active' : '');
+    card.dataset.iconBg = f.iconBg;
+    card.dataset.key = key;
+    card.innerHTML = `
+      <div class="filiere-check">✓</div>
+      <div class="filiere-icon">${ICONS[f.icon]}</div>
+      <div class="filiere-name">${f.name}</div>
+      <div class="filiere-count">${f.groups.length} Groupe${f.groups.length>1?'s':''}</div>
+    `;
+    card.addEventListener('click', ()=>{
+      currentFiliere = key;
+      renderFiliereGrid();
+      renderFiliereDetail();
+    });
+    grid.appendChild(card);
+  });
+}
+
+/* ============ RENDER STATS ============ */
+function renderStats(f){
+  const total = f.students.length;
+  const paye = f.students.filter(s=>s.status==='paye').length;
+  const attente = f.students.filter(s=>s.status==='attente').length;
+  const pct = total ? Math.round((paye/total)*100) : 0;
+
+  const grid = document.getElementById('statsGrid');
+  grid.innerHTML = `
+    <div class="stat-card">
+      <div class="stat-icon purple">${ICONS.users}</div>
+      <div><div class="stat-value">${f.groups.length}</div><div class="stat-label">Groupes</div></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon blue">${ICONS.users}</div>
+      <div><div class="stat-value">${total}</div><div class="stat-label">Élèves au total</div></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon green">${ICONS.check}</div>
+      <div><div class="stat-value">${pct}%</div><div class="stat-label">Paiements à jour</div></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon orange">${ICONS.user}</div>
+      <div><div class="stat-value">${attente}</div><div class="stat-label">Élèves en attente</div></div>
+    </div>
+  `;
+}
+
+/* ============ RENDER GROUP DROPDOWN ============ */
+function renderGroupSelect(f){
+  const select = document.getElementById('groupFilter');
+  select.innerHTML = '<option value="all">Tous les groupes</option>' +
+    f.groups.map(g=>`<option value="${g}">${g}</option>`).join('');
+  select.value = 'all';
+}
+
+/* ============ RENDER TABLE ============ */
+const STATUS_LABEL = { paye:'Payé', attente:'En attente', retard:'En retard' };
+
+function renderTable(){
+  const f = FILIERES[currentFiliere];
+  const groupVal = document.getElementById('groupFilter').value;
+  const searchVal = document.getElementById('studentSearch').value.trim().toLowerCase();
+
+  let rows = f.students.filter(s=>{
+    const groupOk = groupVal === 'all' || s.group === groupVal;
+    const searchOk = !searchVal || s.name.toLowerCase().includes(searchVal);
+    return groupOk && searchOk;
+  });
+
+  const tbody = document.getElementById('studentsTbody');
+  if(rows.length === 0){
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="4">Aucun élève trouvé.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows.map(s=>`
+    <tr>
+      <td>
+        <div class="student-cell">
+          <div class="avatar" style="background:${colorFor(s.name)}">${initials(s.name)}</div>
+          <span class="student-name">${s.name}</span>
+        </div>
+      </td>
+      <td>${s.phone}</td>
+      <td><span class="group-badge">${s.group}</span></td>
+      <td><span class="status-pill ${s.status}"><span class="status-dot"></span>${STATUS_LABEL[s.status]}</span></td>
+    </tr>
+  `).join('');
+}
+
+/* ============ FULL REFRESH ============ */
+function renderFiliereDetail(){
+  const f = FILIERES[currentFiliere];
+  document.getElementById('filiereTitle').textContent = `Filière : ${f.name}`;
+  renderStats(f);
+  renderGroupSelect(f);
+  renderTable();
+}
+
+document.getElementById('groupFilter').addEventListener('change', renderTable);
+document.getElementById('studentSearch').addEventListener('input', renderTable);
+
+document.getElementById('filterToggleBtn').addEventListener('click', ()=>{
+  document.getElementById('groupFilter').focus();
+});
+
+/* ============ TODAY'S DATE ============ */
+(function setDate(){
+  const months = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  const d = new Date();
+  document.getElementById('todayDate').textContent = `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+})();
+
+/* ============ INIT ============ */
+renderFiliereGrid();
+renderFiliereDetail();
+</script>
+</body>
+</html>

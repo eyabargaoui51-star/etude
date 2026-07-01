@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SmartTeacher — Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="variables.css">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="responsive.css">
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ===================== SIDEBAR ===================== -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar__header">
+      <div class="brand">
+        <span class="brand__icon">🎓</span>
+        <span class="brand__name">Smart<strong>Teacher</strong></span>
+      </div>
+      <button class="sidebar__toggle" id="sidebarToggle" aria-label="Ouvrir/fermer le menu">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+
+    <nav class="sidebar__nav">
+      <ul class="nav-list">
+        <li class="nav-item nav-item--active">
+          <a href="dashboard.html" class="nav-link">
+            <span class="nav-icon">🏠</span><span class="nav-text">Dashboard</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="#" class="nav-link">
+            <span class="nav-icon">🗂️</span><span class="nav-text">Filières</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="groupes.html" class="nav-link">
+            <span class="nav-icon">👥</span><span class="nav-text">Groupes</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="#" class="nav-link">
+            <span class="nav-icon">🧑‍🎓</span><span class="nav-text">Élèves</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="#" class="nav-link">
+            <span class="nav-icon">📅</span><span class="nav-text">Emploi du temps</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="#" class="nav-link">
+            <span class="nav-icon">⬇️</span><span class="nav-text">Présence</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="#" class="nav-link">
+            <span class="nav-icon">💳</span><span class="nav-text">Paiements</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="#" class="nav-link">
+            <span class="nav-icon">🔁</span><span class="nav-text">Révisions</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="#" class="nav-link">
+            <span class="nav-icon">📊</span><span class="nav-text">Statistiques</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="#" class="nav-link">
+            <span class="nav-icon">⚙️</span><span class="nav-text">Paramètres</span>
+          </a>
+        </li>
+      </ul>
+    </nav>
+
+    <div class="sidebar__footer">
+      <div class="user-card">
+        <span class="user-card__avatar">
+          <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <defs>
+              <clipPath id="avatarClip"><circle cx="60" cy="60" r="60"/></clipPath>
+            </defs>
+            <g clip-path="url(#avatarClip)">
+              <circle cx="60" cy="60" r="60" fill="#ffffff"/>
+              <!-- shoulders / sweater -->
+              <path d="M-4 132 C-4 96 20 78 60 78 C100 78 124 96 124 132 Z" fill="#6c5ce7"/>
+              <!-- collar -->
+              <path d="M46 80 L60 96 L74 80" fill="none" stroke="#574bce" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+              <!-- neck -->
+              <rect x="51" y="56" width="18" height="22" rx="7" fill="#f4c79c"/>
+              <!-- ears -->
+              <circle cx="31" cy="56" r="5" fill="#f4c79c"/>
+              <circle cx="89" cy="56" r="5" fill="#f4c79c"/>
+              <!-- face -->
+              <circle cx="60" cy="50" r="30" fill="#f4c79c"/>
+              <!-- hair -->
+              <path d="M27 42 C22 10 46 -2 60 -2 C76 -2 98 10 93 42 C84 18 73 30 64 14 C57 30 40 14 32 30 C26 20 16 26 27 42 Z" fill="#1c1832"/>
+              <path d="M30 30 C28 18 34 10 40 8" stroke="#1c1832" stroke-width="5" stroke-linecap="round" fill="none"/>
+              <!-- eyebrows -->
+              <path d="M40 44 Q47 40 54 44" stroke="#1c1832" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+              <path d="M66 44 Q73 40 80 44" stroke="#1c1832" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+              <!-- glasses -->
+              <g fill="none" stroke="#1c1832" stroke-width="3.4">
+                <circle cx="46" cy="52" r="12"/>
+                <circle cx="74" cy="52" r="12"/>
+                <line x1="58" y1="52" x2="62" y2="52"/>
+                <line x1="34" y1="50" x2="28" y2="48"/>
+                <line x1="86" y1="50" x2="92" y2="48"/>
+              </g>
+              <!-- nose + smile -->
+              <path d="M60 56 L58 64 L62 64" stroke="#d9a26d" stroke-width="2" fill="none" stroke-linecap="round"/>
+              <path d="M49 70 Q60 78 71 70" stroke="#a9784f" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+            </g>
+          </svg>
+        </span>
+        <div class="user-card__info">
+          <p class="user-card__name">Professeur<br>Physique</p>
+          <span class="user-card__badge">Enseignant</span>
+        </div>
+      </div>
+      <button class="logout-btn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Déconnexion
+      </button>
+    </div>
+  </aside>
+
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <!-- ===================== MAIN ===================== -->
+  <div class="main">
+
+    <!-- TOPBAR -->
+    <header class="topbar">
+      <div class="topbar__left">
+        <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Menu">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+        <h1 class="topbar__title">Dashboard</h1>
+      </div>
+
+      <div class="topbar__right">
+        <button class="icon-btn" aria-label="Rechercher">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="M21 21l-4.35-4.35" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+        <div class="date-dropdown" id="dateDropdown">
+          <button class="date-pill" id="datePillBtn" aria-haspopup="true" aria-expanded="false">
+            <span class="date-pill__icon">📅</span>
+            <span class="date-pill__text">
+              <strong id="todayDate">15 Mai 2024</strong>
+              <small id="todayDay">Mercredi</small>
+            </span>
+            <svg class="date-pill__chevron" width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+
+          <div class="calendar-popover" id="calendarPopover" hidden>
+            <div class="calendar-popover__header">
+              <button class="calendar-nav" id="calPrev" type="button" aria-label="Mois précédent">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <span class="calendar-popover__month" id="calMonthLabel">Mai 2024</span>
+              <button class="calendar-nav" id="calNext" type="button" aria-label="Mois suivant">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+            </div>
+            <div class="calendar-weekdays">
+              <span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span><span>D</span>
+            </div>
+            <div class="calendar-grid" id="calendarGrid"></div>
+            <button class="calendar-today-btn" id="calToday" type="button">Aujourd'hui</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- CONTENT -->
+    <main class="content">
+
+      <!-- Welcome banner -->
+      <section class="banner">
+        <div class="banner__text">
+          <h2>Bonjour Professeur ! <span class="wave">👋</span></h2>
+          <p>Voici un aperçu général de vos groupes et activités.</p>
+        </div>
+        <div class="banner__illustration" aria-hidden="true">
+          <svg class="illustration-svg" viewBox="0 0 460 300" xmlns="http://www.w3.org/2000/svg">
+            <!-- decorative background: bar chart -->
+            <g opacity="0.5">
+              <rect x="20" y="190" width="14" height="70" rx="3" fill="#d9d4f5"/>
+              <rect x="42" y="160" width="14" height="100" rx="3" fill="#d9d4f5"/>
+              <rect x="64" y="205" width="14" height="55" rx="3" fill="#d9d4f5"/>
+              <rect x="86" y="140" width="14" height="120" rx="3" fill="#d9d4f5"/>
+            </g>
+            <!-- decorative background: rising line + dots -->
+            <g opacity="0.55" fill="none" stroke="#b9aef0" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="150,70 185,95 215,55 248,80 280,40"/>
+            </g>
+            <g fill="#b9aef0" opacity="0.6">
+              <circle cx="150" cy="70" r="4"/>
+              <circle cx="185" cy="95" r="4"/>
+              <circle cx="215" cy="55" r="4"/>
+              <circle cx="248" cy="80" r="4"/>
+              <circle cx="280" cy="40" r="4"/>
+            </g>
+            <g opacity="0.45" fill="#cfc8f7">
+              <circle cx="320" cy="30" r="3"/>
+              <circle cx="340" cy="15" r="2.5"/>
+              <circle cx="300" cy="50" r="2"/>
+            </g>
+
+            <!-- plant -->
+            <g transform="translate(388,228)">
+              <path d="M-16 62 L16 62 L11 30 L-11 30 Z" fill="#6c5ce7"/>
+              <rect x="-16" y="24" width="32" height="8" rx="2" fill="#574bce"/>
+              <path d="M0 30 C-28 14,-30 -22,-2 -8 C2 -26 30 -22 2 4 C26 -6 22 22 0 30 Z" fill="#2ecc8f"/>
+              <path d="M0 30 C-14 18,-16 -2,-2 6" fill="none" stroke="#27b07f" stroke-width="2" opacity="0.6"/>
+            </g>
+
+            <!-- desk -->
+            <path d="M150 296 L410 296 L398 268 L162 268 Z" fill="#e1ddf7"/>
+
+            <!-- laptop -->
+            <g transform="translate(232,200)">
+              <path d="M-78 96 L78 96 L66 60 L-66 60 Z" fill="#d6d2ef"/>
+              <rect x="-58" y="-14" width="116" height="78" rx="7" fill="#f3f1fb"/>
+              <rect x="-50" y="-7" width="100" height="62" rx="4" fill="#a9b6d9"/>
+              <rect x="-50" y="-7" width="100" height="62" rx="4" fill="url(#screenGrad)" opacity="0.9"/>
+              <circle cx="0" cy="22" r="5" fill="#2ecc8f"/>
+            </g>
+            <defs>
+              <linearGradient id="screenGrad" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#c4cdea"/>
+                <stop offset="100%" stop-color="#97a6d4"/>
+              </linearGradient>
+            </defs>
+
+            <!-- body / sweater -->
+            <path d="M150 300 C150 218 188 182 230 182 C272 182 310 218 310 300 Z" fill="#6c5ce7"/>
+            <path d="M150 300 C150 218 188 182 230 182 C272 182 310 218 310 300 Z" fill="url(#sweaterShade)" opacity="0.25"/>
+            <defs>
+              <linearGradient id="sweaterShade" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#ffffff"/>
+                <stop offset="100%" stop-color="#1c1832"/>
+              </linearGradient>
+            </defs>
+
+            <!-- collar -->
+            <path d="M210 188 L230 208 L250 188" fill="none" stroke="#574bce" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+
+            <!-- arms reaching to laptop -->
+            <path d="M178 222 C160 240 160 258 182 268" stroke="#6c5ce7" stroke-width="26" stroke-linecap="round" fill="none"/>
+            <path d="M282 222 C300 240 300 258 278 268" stroke="#6c5ce7" stroke-width="26" stroke-linecap="round" fill="none"/>
+            <!-- hands -->
+            <circle cx="186" cy="270" r="11" fill="#f4c79c"/>
+            <circle cx="274" cy="270" r="11" fill="#f4c79c"/>
+
+            <!-- neck -->
+            <rect x="216" y="160" width="28" height="30" rx="10" fill="#f4c79c"/>
+
+            <!-- head -->
+            <circle cx="230" cy="118" r="56" fill="#f4c79c"/>
+
+            <!-- ears -->
+            <circle cx="177" cy="122" r="8" fill="#f4c79c"/>
+            <circle cx="283" cy="122" r="8" fill="#f4c79c"/>
+
+            <!-- hair -->
+            <path d="M174 108 C168 50 202 22 230 22 C262 22 292 50 286 108 C277 76 266 92 254 70 C246 90 222 68 212 88 C202 72 184 82 174 108 Z" fill="#1c1832"/>
+            <path d="M178 96 C176 84 182 76 188 74" stroke="#1c1832" stroke-width="6" stroke-linecap="round" fill="none"/>
+
+            <!-- glasses -->
+            <g fill="none" stroke="#1c1832" stroke-width="5">
+              <circle cx="206" cy="122" r="22"/>
+              <circle cx="256" cy="122" r="22"/>
+              <line x1="228" y1="122" x2="234" y2="122"/>
+              <line x1="184" y1="118" x2="172" y2="114"/>
+              <line x1="278" y1="118" x2="290" y2="114"/>
+            </g>
+
+            <!-- eyebrows -->
+            <path d="M196 100 Q206 95 216 100" stroke="#1c1832" stroke-width="3" fill="none" stroke-linecap="round"/>
+            <path d="M246 100 Q256 95 266 100" stroke="#1c1832" stroke-width="3" fill="none" stroke-linecap="round"/>
+
+            <!-- nose + smile -->
+            <path d="M230 130 L226 144 L234 144" stroke="#d9a26d" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+            <path d="M208 152 Q230 168 252 152" stroke="#a9784f" stroke-width="3" fill="none" stroke-linecap="round"/>
+          </svg>
+        </div>
+      </section>
+
+      <!-- Stat cards -->
+      <section class="stats-grid" id="statsGrid">
+        <!-- injected / static cards -->
+        <article class="stat-card">
+          <div class="stat-card__icon stat-card__icon--primary">👥</div>
+          <p class="stat-card__label">Total Élèves</p>
+          <p class="stat-card__value">226</p>
+          <span class="stat-card__trend stat-card__trend--up">+12 ce mois ↑</span>
+        </article>
+
+        <article class="stat-card">
+          <div class="stat-card__icon stat-card__icon--blue">👨‍👩‍👧</div>
+          <p class="stat-card__label">Total Groupes</p>
+          <p class="stat-card__value">8</p>
+          <span class="stat-card__trend stat-card__trend--up">+1 ce mois ↑</span>
+        </article>
+
+        <article class="stat-card">
+          <div class="stat-card__icon stat-card__icon--orange">📅</div>
+          <p class="stat-card__label">Séances Aujourd'hui</p>
+          <p class="stat-card__value">4</p>
+          <a href="#" class="stat-card__link">Voir emploi du temps ›</a>
+        </article>
+
+        <article class="stat-card">
+          <div class="stat-card__icon stat-card__icon--pink">🚫</div>
+          <p class="stat-card__label">Absences Aujourd'hui</p>
+          <p class="stat-card__value">7</p>
+          <a href="#" class="stat-card__link stat-card__link--danger">Voir détails ›</a>
+        </article>
+
+        <article class="stat-card">
+          <div class="stat-card__icon stat-card__icon--green">👛</div>
+          <p class="stat-card__label">Paiements en attente</p>
+          <p class="stat-card__value">15</p>
+          <a href="#" class="stat-card__link stat-card__link--success">Voir la liste ›</a>
+        </article>
+      </section>
+
+      <!-- Three columns: schedule / payments / absences -->
+      <section class="columns-grid">
+
+        <!-- Prochaines séances -->
+        <article class="panel">
+          <header class="panel__header">
+            <span class="panel__icon panel__icon--primary">🕐</span>
+            <h3>Prochaines séances aujourd'hui</h3>
+          </header>
+          <ul class="schedule-list" id="scheduleList">
+            <li class="schedule-item">
+              <span class="schedule-item__time">17:00</span>
+              <span class="schedule-item__group">Info A</span>
+              <span class="schedule-item__subject">Physique</span>
+            </li>
+            <li class="schedule-item">
+              <span class="schedule-item__time">18:30</span>
+              <span class="schedule-item__group">Science B</span>
+              <span class="schedule-item__subject">Physique</span>
+            </li>
+            <li class="schedule-item">
+              <span class="schedule-item__time">19:30</span>
+              <span class="schedule-item__group">Math A</span>
+              <span class="schedule-item__subject">Physique</span>
+            </li>
+            <li class="schedule-item">
+              <span class="schedule-item__time">20:30</span>
+              <span class="schedule-item__group">Tech A</span>
+              <span class="schedule-item__subject">Physique</span>
+            </li>
+          </ul>
+          <a href="#" class="panel__footer-link">Voir tout l'emploi du temps ›</a>
+        </article>
+
+        <!-- Paiements en attente -->
+        <article class="panel">
+          <header class="panel__header">
+            <span class="panel__icon panel__icon--orange">💳</span>
+            <h3>Paiements en attente</h3>
+          </header>
+          <ul class="payment-list" id="paymentList">
+            <li class="payment-item">
+              <div class="payment-item__info">
+                <span class="payment-item__name">Ahmed Ben Ali</span>
+                <span class="payment-item__group">Info A</span>
+              </div>
+              <span class="payment-item__amount">120 DT</span>
+              <span class="badge badge--danger">Non payé</span>
+            </li>
+            <li class="payment-item">
+              <div class="payment-item__info">
+                <span class="payment-item__name">Youssef Mahjoub</span>
+                <span class="payment-item__group">Math B</span>
+              </div>
+              <span class="payment-item__amount">120 DT</span>
+              <span class="badge badge--danger">Non payé</span>
+            </li>
+            <li class="payment-item">
+              <div class="payment-item__info">
+                <span class="payment-item__name">Sara Bouzid</span>
+                <span class="payment-item__group">Science A</span>
+              </div>
+              <span class="payment-item__amount">120 DT</span>
+              <span class="badge badge--danger">Non payé</span>
+            </li>
+            <li class="payment-item">
+              <div class="payment-item__info">
+                <span class="payment-item__name">Mohamed Salah</span>
+                <span class="payment-item__group">Tech A</span>
+              </div>
+              <span class="payment-item__amount">120 DT</span>
+              <span class="badge badge--danger">Non payé</span>
+            </li>
+            <li class="payment-item">
+              <div class="payment-item__info">
+                <span class="payment-item__name">Ines Trabelsi</span>
+                <span class="payment-item__group">Info B</span>
+              </div>
+              <span class="payment-item__amount">120 DT</span>
+              <span class="badge badge--danger">Non payé</span>
+            </li>
+          </ul>
+          <a href="#" class="panel__footer-link panel__footer-link--orange">Voir tous les impayés ›</a>
+        </article>
+
+        <!-- Absences récentes -->
+        <article class="panel">
+          <header class="panel__header">
+            <span class="panel__icon panel__icon--pink">🚷</span>
+            <h3>Absences récentes</h3>
+          </header>
+          <ul class="absence-list" id="absenceList">
+            <li class="absence-item">
+              <div class="absence-item__info">
+                <span class="absence-item__name">Karim Jaziri</span>
+                <span class="absence-item__group">Info B</span>
+              </div>
+              <span class="badge badge--danger-outline">4 absences</span>
+            </li>
+            <li class="absence-item">
+              <div class="absence-item__info">
+                <span class="absence-item__name">Ilyes Chemli</span>
+                <span class="absence-item__group">Science A</span>
+              </div>
+              <span class="badge badge--danger-outline">3 absences</span>
+            </li>
+            <li class="absence-item">
+              <div class="absence-item__info">
+                <span class="absence-item__name">Rania Nasri</span>
+                <span class="absence-item__group">Math A</span>
+              </div>
+              <span class="badge badge--danger-outline">3 absences</span>
+            </li>
+            <li class="absence-item">
+              <div class="absence-item__info">
+                <span class="absence-item__name">Hedi Belhaj</span>
+                <span class="absence-item__group">Info A</span>
+              </div>
+              <span class="badge badge--danger-outline">2 absences</span>
+            </li>
+            <li class="absence-item">
+              <div class="absence-item__info">
+                <span class="absence-item__name">Nour Bouaicha</span>
+                <span class="absence-item__group">Tech A</span>
+              </div>
+              <span class="badge badge--danger-outline">2 absences</span>
+            </li>
+          </ul>
+          <a href="#" class="panel__footer-link panel__footer-link--pink">Voir toutes les absences ›</a>
+        </article>
+
+      </section>
+
+      <!-- Aperçu par filière -->
+      <section class="panel panel--wide">
+        <header class="panel__header panel__header--spread">
+          <div class="panel__header-left">
+            <span class="panel__icon panel__icon--primary">📘</span>
+            <h3>Aperçu par filière</h3>
+          </div>
+          <button class="btn btn--ghost" data-action="addFiliere">⚙️ Gérer les filières</button>
+        </header>
+
+        <div class="filiere-grid" id="filiereGrid">
+          <article class="filiere-card filiere-card--primary">
+            <div class="filiere-card__icon">💻</div>
+            <h4>Bac Informatique</h4>
+            <div class="filiere-card__stats">
+              <div><strong>3</strong><span>Groupes</span></div>
+              <div><strong>82</strong><span>Élèves</span></div>
+            </div>
+            <div class="filiere-card__bar"><span style="width:82%"></span></div>
+            <button class="btn btn--block btn--primary">Voir les groupes ›</button>
+          </article>
+
+          <article class="filiere-card filiere-card--blue">
+            <div class="filiere-card__icon">🧮</div>
+            <h4>Bac Math</h4>
+            <div class="filiere-card__stats">
+              <div><strong>2</strong><span>Groupes</span></div>
+              <div><strong>54</strong><span>Élèves</span></div>
+            </div>
+            <div class="filiere-card__bar"><span style="width:60%"></span></div>
+            <button class="btn btn--block btn--blue">Voir les groupes ›</button>
+          </article>
+
+          <article class="filiere-card filiere-card--green">
+            <div class="filiere-card__icon">🧪</div>
+            <h4>Bac Sciences</h4>
+            <div class="filiere-card__stats">
+              <div><strong>2</strong><span>Groupes</span></div>
+              <div><strong>60</strong><span>Élèves</span></div>
+            </div>
+            <div class="filiere-card__bar"><span style="width:66%"></span></div>
+            <button class="btn btn--block btn--green">Voir les groupes ›</button>
+          </article>
+
+          <article class="filiere-card filiere-card--orange">
+            <div class="filiere-card__icon">⚙️</div>
+            <h4>Bac Technique</h4>
+            <div class="filiere-card__stats">
+              <div><strong>1</strong><span>Groupe</span></div>
+              <div><strong>30</strong><span>Élèves</span></div>
+            </div>
+            <div class="filiere-card__bar"><span style="width:34%"></span></div>
+            <button class="btn btn--block btn--orange">Voir le groupe ›</button>
+          </article>
+        </div>
+      </section>
+
+      <!-- Actions rapides -->
+      <section class="panel panel--wide actions-panel">
+        <header class="panel__header">
+          <span class="panel__icon panel__icon--orange">⚡</span>
+          <h3>Actions rapides</h3>
+        </header>
+        <div class="actions-row">
+          <button class="action-btn action-btn--primary" data-action="addStudent">👤➕ Ajouter un élève</button>
+          <button class="action-btn action-btn--blue" data-action="createGroup">👥✏️ Créer un groupe</button>
+          <button class="action-btn action-btn--green" data-action="newSession">🗓️➕ Nouvelle séance</button>
+          <button class="action-btn action-btn--orange" data-action="addPayment">💳✔️ Vérifier les paiements</button>
+          <button class="action-btn action-btn--pink" data-action="exportReport">📄⬇️ Exporter un rapport</button>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<!-- ===================== MODAL ===================== -->
+<div class="modal-overlay" id="modalOverlay" hidden>
+  <div class="modal" id="modalBox" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <button class="modal__close" id="modalClose" type="button" aria-label="Fermer">✕</button>
+    <header class="modal__header">
+      <span class="modal__icon" id="modalIcon">📝</span>
+      <h3 id="modalTitle">Titre</h3>
+    </header>
+    <form class="modal__form" id="modalForm" novalidate>
+      <div class="modal__fields" id="modalFields"></div>
+
+      <div class="modal__student-selector" id="modalStudentSelector" hidden>
+        <label class="modal__field-label" for="studentSearch">Sélectionner les élèves</label>
+        <input type="text" class="modal__search" id="studentSearch" placeholder="Rechercher un élève par nom...">
+        <div class="modal__student-list" id="studentList"></div>
+        <span class="modal__selected-count" id="selectedCount">0 élève(s) sélectionné(s)</span>
+      </div>
+
+      <div class="modal__actions">
+        <button type="button" class="modal__btn modal__btn--ghost" id="modalCancel">Annuler</button>
+        <button type="submit" class="modal__btn modal__btn--primary" id="modalSubmit">Valider</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="main.js"></script>
+</body>
+</html>
