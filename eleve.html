@@ -42,101 +42,69 @@
     padding: 28px 32px 60px;
   }
 
-  /* ---------- Top bar ---------- */
-  .topbar{
+  /* ---------- Bande Espace Étudiant ---------- */
+  .student-banner{
     display:flex;
     align-items:center;
-    justify-content:flex-end;
-    gap: 14px;
+    justify-content:space-between;
+    gap: 24px;
+    background: linear-gradient(120deg, #6c5ce7 0%, #5a4bd6 55%, #4c3fc9 100%);
+    border-radius: 22px;
+    padding: 30px 40px;
     margin-bottom: 22px;
+    box-shadow: 0 14px 34px -14px rgba(90,75,214,0.55);
+    overflow: hidden;
+    position: relative;
   }
 
-  .search-box{
-    display:flex;
-    align-items:center;
-    gap:10px;
-    background:#fff;
-    border:1px solid var(--border);
-    border-radius: 12px;
-    padding: 10px 16px;
-    width: 260px;
-    box-shadow: var(--shadow);
-  }
-  .search-box input{
-    border:none;
-    outline:none;
-    font-size: 14px;
-    width:100%;
-    color: var(--text-main);
-    background:transparent;
-  }
-  .search-box input::placeholder{ color: var(--text-sub); }
-  .search-box svg{ color: var(--text-sub); width:18px; height:18px; flex-shrink:0;}
-
-  .icon-btn{
-    position:relative;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    width: 44px;
-    height: 44px;
-    background:#fff;
-    border:1px solid var(--border);
-    border-radius: 12px;
-    cursor:pointer;
-    box-shadow: var(--shadow);
-    color: var(--text-sub);
-    transition: transform .15s ease, box-shadow .15s ease;
-  }
-  .icon-btn:hover{ transform: translateY(-1px); box-shadow: 0 4px 14px -6px rgba(31,36,64,0.18);}
-  .icon-btn svg{ width:19px; height:19px; }
-
-  .badge{
+  .student-banner::before{
+    content:"";
     position:absolute;
-    top:-6px;
-    right:-6px;
-    background: var(--purple);
-    color:#fff;
-    font-size: 11px;
-    font-weight:700;
-    width:18px;
-    height:18px;
-    border-radius:50%;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    border: 2px solid var(--bg);
+    top:-60px;
+    right:120px;
+    width: 220px;
+    height: 220px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 50%;
   }
 
-  .date-chip{
-    display:flex;
-    align-items:center;
-    gap:10px;
-    background:#fff;
-    border:1px solid var(--border);
-    border-radius:12px;
-    padding: 10px 18px;
-    font-size:14px;
-    font-weight:600;
-    color: var(--text-main);
-    box-shadow: var(--shadow);
-    white-space:nowrap;
-  }
-  .date-chip svg{ width:17px; height:17px; color: var(--text-sub); }
+  .student-banner-text{ position:relative; z-index:1; max-width: 560px; }
 
-  .avatar-mini{
-    width:44px; height:44px;
-    border-radius:50%;
-    background:#1f2440;
-    color:#fff;
-    display:flex;
+  .student-banner-tag{
+    display:inline-flex;
     align-items:center;
-    justify-content:center;
+    gap:8px;
+    background: rgba(255,255,255,0.16);
+    color:#fff;
+    font-size: 12.5px;
     font-weight:700;
-    font-size:15px;
-    box-shadow: var(--shadow);
-    cursor:pointer;
+    padding: 6px 14px;
+    border-radius: 999px;
+    margin-bottom: 14px;
   }
+  .student-banner-tag svg{ width:14px; height:14px; }
+
+  .student-banner-title{
+    font-size: 24px;
+    font-weight:700;
+    color:#fff;
+    margin: 0 0 8px;
+    line-height:1.3;
+  }
+
+  .student-banner-sub{
+    font-size: 14px;
+    color: rgba(255,255,255,0.82);
+    margin: 0;
+  }
+
+  .student-banner-illustration{
+    position:relative;
+    z-index:1;
+    flex-shrink:0;
+    width: 170px;
+  }
+  .student-banner-illustration svg{ width:100%; height:auto; display:block; }
 
   /* ---------- Breadcrumb ---------- */
   .breadcrumb{
@@ -510,8 +478,9 @@
 
   @media (max-width: 640px){
     .page{ padding: 18px; }
-    .topbar{ flex-wrap:wrap; justify-content:flex-start; }
-    .search-box{ order:1; width:100%; }
+    .student-banner{ flex-direction: column; text-align:center; padding: 26px 22px; }
+    .student-banner-text{ max-width:100%; }
+    .student-banner-illustration{ width: 130px; }
     .main-card{ padding: 20px 16px 24px; }
     .filters{ flex-direction: column; }
     select.filter-select{ width:100%; }
@@ -546,26 +515,40 @@
 
 <div class="page">
 
-  <!-- Top bar -->
-  <div class="topbar">
-    <div class="search-box">
-      <input id="topSearch" type="text" placeholder="Rechercher...">
-      <i data-lucide="search"></i>
+  <!-- Bande Espace Étudiant -->
+  <div class="student-banner">
+    <div class="student-banner-text">
+      <span class="student-banner-tag">
+        <i data-lucide="graduation-cap"></i>
+        Espace Étudiant
+      </span>
+      <h1 class="student-banner-title">Gérez tous vos élèves en un seul endroit</h1>
+      <p class="student-banner-sub">Ajoutez, modifiez et suivez la liste de vos élèves facilement.</p>
     </div>
-    <button class="icon-btn" id="notifBtn" aria-label="Notifications">
-      <i data-lucide="bell"></i>
-      <span class="badge">3</span>
-    </button>
-    <div class="date-chip">
-      <i data-lucide="calendar"></i>
-      <span>30 Juin 2026</span>
+    <div class="student-banner-illustration">
+      <svg viewBox="0 0 220 180" xmlns="http://www.w3.org/2000/svg">
+        <ellipse cx="110" cy="165" rx="85" ry="10" fill="#000" opacity="0.06"/>
+        <circle cx="110" cy="70" r="66" fill="#ffffff" opacity="0.14"/>
+        <path d="M62 150 C62 118 82 96 110 96 C138 96 158 118 158 150 Z" fill="#2b2338"/>
+        <circle cx="110" cy="66" r="30" fill="#f6c199"/>
+        <path d="M80 60 C80 40 94 28 110 28 C126 28 140 40 140 60 C140 60 133 52 128 52 C128 52 125 44 110 43 C95 44 92 52 92 52 C87 52 80 60 80 60 Z" fill="#2b2338"/>
+        <g transform="translate(70,118)">
+          <path d="M0 26 L40 34 L80 26 L80 40 L40 48 L0 40 Z" fill="#ffffff"/>
+          <path d="M0 26 L40 34 L80 26" fill="none" stroke="#d8dcf5" stroke-width="1.5"/>
+          <line x1="40" y1="34" x2="40" y2="48" stroke="#d8dcf5" stroke-width="1.5"/>
+          <line x1="8" y1="29" x2="8" y2="43" stroke="#eceefb" stroke-width="1"/>
+          <line x1="16" y1="31" x2="16" y2="45" stroke="#eceefb" stroke-width="1"/>
+          <line x1="64" y1="31" x2="64" y2="43" stroke="#eceefb" stroke-width="1"/>
+          <line x1="72" y1="29" x2="72" y2="41" stroke="#eceefb" stroke-width="1"/>
+        </g>
+        <path d="M55 150 C60 130 75 118 110 118 C145 118 160 130 165 150 Z" fill="#6c5ce7"/>
+      </svg>
     </div>
-    <div class="avatar-mini" title="Compte">A</div>
   </div>
 
   <!-- Breadcrumb -->
   <nav class="breadcrumb" aria-label="Fil d'ariane">
-    <a href="#">Dashboard</a>
+    <a href="dashboard.html">Dashboard</a>
     <i data-lucide="chevron-right"></i>
     <span class="current">Élèves</span>
   </nav>
@@ -775,9 +758,11 @@
 
   /* ---------- Données ---------- */
   const groupesParFiliere = {
-    "Sciences Expérimentales": ["Bac Sc Exp - Groupe A", "Bac Sc Exp - Groupe B"],
-    "Mathématiques": ["Bac Maths - Groupe A", "Bac Maths - Groupe B"],
-    "Informatique": ["Bac Info - Groupe A", "Bac Info - Groupe B"]
+    "Sciences Expérimentales": ["3ème Sc Exp - Groupe A", "3ème Sc Exp - Groupe B"],
+    "Mathématiques": ["3ème Maths - Groupe A", "3ème Maths - Groupe B"],
+    "Informatique": ["3ème Info - Groupe A", "3ème Info - Groupe B"],
+    "Économie et Gestion": ["3ème Éco - Groupe A"],
+    "Lettres": ["3ème Lettres - Groupe A"]
   };
 
   const toutesLesFilieres = Object.keys(groupesParFiliere);
@@ -790,16 +775,16 @@
   }
 
   let eleves = [
-    { id: 1, nom: "Ben Ali", prenom: "Achref", tel: "55 123 456", filiere: "Sciences Expérimentales", groupe: "Bac Sc Exp - Groupe A", statut: "Actif", dateEntree: "2024-09-15", paiement: "Payé" },
-    { id: 2, nom: "Trabelsi", prenom: "Yassine", tel: "22 456 789", filiere: "Informatique", groupe: "Bac Info - Groupe A", statut: "Actif", dateEntree: "2024-09-16", paiement: "Payé" },
-    { id: 3, nom: "Gharbi", prenom: "Mariem", tel: "20 112 233", filiere: "Mathématiques", groupe: "Bac Maths - Groupe B", statut: "Actif", dateEntree: "2024-09-18", paiement: "Non payé" },
-    { id: 4, nom: "Cherni", prenom: "Nour", tel: "58 998 776", filiere: "Mathématiques", groupe: "Bac Maths - Groupe A", statut: "Inactif", dateEntree: "2024-09-20", paiement: "Non payé" },
-    { id: 5, nom: "Jlassi", prenom: "Omar", tel: "23 654 321", filiere: "Informatique", groupe: "Bac Info - Groupe B", statut: "Actif", dateEntree: "2024-09-22", paiement: "Payé" },
-    { id: 6, nom: "Khemiri", prenom: "Salma", tel: "50 741 852", filiere: "Informatique", groupe: "Bac Info - Groupe A", statut: "Actif", dateEntree: "2024-09-23", paiement: "Payé" },
+    { id: 1, nom: "Ben Ali", prenom: "Achref", tel: "55 123 456", filiere: "Sciences Expérimentales", groupe: "3ème Sc Exp - Groupe A", statut: "Actif", dateEntree: "2024-09-15", paiement: "Payé" },
+    { id: 2, nom: "Trabelsi", prenom: "Yassine", tel: "22 456 789", filiere: "Informatique", groupe: "3ème Info - Groupe A", statut: "Actif", dateEntree: "2024-09-16", paiement: "Payé" },
+    { id: 3, nom: "Gharbi", prenom: "Mariem", tel: "20 112 233", filiere: "Mathématiques", groupe: "3ème Maths - Groupe B", statut: "Actif", dateEntree: "2024-09-18", paiement: "Non payé" },
+    { id: 4, nom: "Cherni", prenom: "Nour", tel: "58 998 776", filiere: "Économie et Gestion", groupe: "3ème Éco - Groupe A", statut: "Inactif", dateEntree: "2024-09-20", paiement: "Non payé" },
+    { id: 5, nom: "Jlassi", prenom: "Omar", tel: "23 654 321", filiere: "Informatique", groupe: "3ème Info - Groupe B", statut: "Actif", dateEntree: "2024-09-22", paiement: "Payé" },
+    { id: 6, nom: "Khemiri", prenom: "Salma", tel: "50 741 852", filiere: "Lettres", groupe: "3ème Lettres - Groupe A", statut: "Actif", dateEntree: "2024-09-23", paiement: "Payé" },
     { id: 7, nom: "Bouazizi", prenom: "Ahmed", tel: "27 369 258", filiere: "Sciences Expérimentales", groupe: "3ème Sc Exp - Groupe B", statut: "Actif", dateEntree: "2024-09-25", paiement: "Non payé" },
-    { id: 8, nom: "Sassi", prenom: "Ines", tel: "29 147 963", filiere: "Mathématiques", groupe: "Bac Maths - Groupe A", statut: "Inactif", dateEntree: "2024-09-27", paiement: "Non payé" },
-    { id: 9, nom: "Mabrouk", prenom: "Karim", tel: "24 852 741", filiere: "Informatique", groupe: "Bac Info - Groupe A", statut: "Actif", dateEntree: "2024-09-28", paiement: "Payé" },
-    { id: 10, nom: "Zouari", prenom: "Lina", tel: "26 963 147", filiere: "Sciences Expérimentales", groupe: "Bac Sc Exp - Groupe A", statut: "Actif", dateEntree: "2024-09-29", paiement: "Payé" }
+    { id: 8, nom: "Sassi", prenom: "Ines", tel: "29 147 963", filiere: "Mathématiques", groupe: "3ème Maths - Groupe A", statut: "Inactif", dateEntree: "2024-09-27", paiement: "Non payé" },
+    { id: 9, nom: "Mabrouk", prenom: "Karim", tel: "24 852 741", filiere: "Informatique", groupe: "3ème Info - Groupe A", statut: "Actif", dateEntree: "2024-09-28", paiement: "Payé" },
+    { id: 10, nom: "Zouari", prenom: "Lina", tel: "26 963 147", filiere: "Sciences Expérimentales", groupe: "3ème Sc Exp - Groupe A", statut: "Actif", dateEntree: "2024-09-29", paiement: "Payé" }
   ];
 
   let nextId = eleves.length + 1;
@@ -1093,20 +1078,6 @@
     showToast(`${prenom} ${nom} a été ajouté(e)`);
     closeAddModal();
     render();
-  });
-
-  const notifBtn = document.getElementById('notifBtn');
-  if(notifBtn){
-    notifBtn.addEventListener('click', () => {
-      showToast('3 nouvelles notifications');
-    });
-  }
-
-  document.getElementById('topSearch').addEventListener('keydown', (e) => {
-    if(e.key === 'Enter' && e.target.value.trim() !== ''){
-      document.getElementById('searchInput').value = e.target.value.trim();
-      render();
-    }
   });
 
   /* Escape key closes modals */

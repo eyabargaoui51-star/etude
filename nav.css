@@ -1,0 +1,102 @@
+/* ============================================
+   SmartTeacher — Site-wide Sidebar Navigation
+   (namespaced with "stnav-" so it never collides
+   with any page's own local styles/classes)
+   ============================================ */
+
+   .stnav-shell { display: flex; min-height: 100vh; }
+
+   .stnav-sidebar {
+     width: var(--sidebar-width, 264px);
+     flex-shrink: 0;
+     background: var(--sidebar-bg, #1b1530);
+     color: var(--sidebar-text, #b8b3cf);
+     display: flex;
+     flex-direction: column;
+     height: 100vh;
+     position: sticky;
+     top: 0;
+     z-index: 200;
+     font-family: var(--font-base, 'Inter', sans-serif);
+   }
+   
+   .stnav-header {
+     display: flex;
+     align-items: center;
+     gap: 8px;
+     padding: 24px 20px;
+     border-bottom: 1px solid var(--sidebar-border, #2e2750);
+   }
+   .stnav-header a { text-decoration: none; color: inherit; display: flex; align-items: center; gap: 8px; }
+   .stnav-header .stnav-icon-brand { font-size: 1.4rem; }
+   .stnav-header .stnav-brand-name { font-size: 1.0625rem; font-weight: 600; color: #ffffff; }
+   .stnav-header .stnav-brand-name strong { font-weight: 700; }
+   
+   .stnav-nav { flex: 1; overflow-y: auto; padding: 16px 12px; }
+   .stnav-list { list-style: none; margin: 0; padding: 0; }
+   .stnav-item { margin-bottom: 4px; }
+   
+   .stnav-link {
+     display: flex;
+     align-items: center;
+     gap: 12px;
+     padding: 12px 16px;
+     border-radius: 12px;
+     font-size: 0.8125rem;
+     font-weight: 500;
+     color: var(--sidebar-text, #b8b3cf);
+     text-decoration: none;
+     transition: background 0.15s ease, color 0.15s ease;
+   }
+   .stnav-icon { font-size: 1rem; width: 20px; text-align: center; }
+   .stnav-link:hover { background: var(--sidebar-bg-soft, #221c3d); color: #ffffff; }
+   .stnav-item--active .stnav-link {
+     background: var(--sidebar-active-bg, #6c5ce7);
+     color: #ffffff;
+     box-shadow: 0 4px 16px rgba(108, 92, 231, 0.35);
+   }
+   
+   .stnav-footer { padding: 20px; border-top: 1px solid var(--sidebar-border, #2e2750); }
+   .stnav-user { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+   .stnav-user__avatar { width: 40px; height: 40px; border-radius: 50%; overflow: hidden; flex-shrink: 0; }
+   .stnav-user__avatar svg { width: 100%; height: 100%; display: block; }
+   .stnav-user__name { font-size: 0.8125rem; font-weight: 600; color: #ffffff; line-height: 1.25; }
+   .stnav-user__badge {
+     display: inline-block; margin-top: 4px; font-size: 0.6875rem; font-weight: 500;
+     background: rgba(108, 92, 231, 0.25); color: #bcb2fb; padding: 2px 10px; border-radius: 999px;
+   }
+   .stnav-logout {
+     display: flex; align-items: center; gap: 8px; width: 100%;
+     padding: 10px 8px; font-size: 0.8125rem; font-weight: 500;
+     color: var(--sidebar-text-muted, #6f6a8c); border: none; background: none; cursor: pointer;
+     border-top: 1px solid var(--sidebar-border, #2e2750);
+     text-decoration: none;
+   }
+   .stnav-logout:hover { color: #ff5c5c; }
+   
+   .stnav-main { flex: 1; min-width: 0; }
+   
+   .stnav-overlay {
+     display: none; position: fixed; inset: 0; background: rgba(10, 8, 20, 0.5); z-index: 190;
+   }
+   
+   .stnav-toggle-btn {
+     display: none;
+     position: fixed; top: 16px; left: 16px; z-index: 210;
+     width: 42px; height: 42px; border-radius: 12px;
+     background: var(--sidebar-bg, #1b1530); color: #fff;
+     align-items: center; justify-content: center;
+     box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+     border: none; cursor: pointer;
+   }
+   
+   @media (max-width: 860px) {
+     .stnav-sidebar {
+       position: fixed; left: 0; top: 0;
+       transform: translateX(-100%);
+       transition: transform 0.25s ease;
+     }
+     .stnav-sidebar.is-open { transform: translateX(0); }
+     .stnav-overlay.is-visible { display: block; }
+     .stnav-toggle-btn { display: flex; }
+   }

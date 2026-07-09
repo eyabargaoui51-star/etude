@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Présence - SmartTeacher</title>
+<style>
+  :root{
+    --violet:#5b4bff;
+    --violet-light:#eeecff;
+    --green:#1fb469;
+    --green-bg:#e7f9ef;
+    --red:#f43f5e;
+    --red-bg:#fde8ec;
+    --orange:#f59e0b;
+    --orange-bg:#fff3e0;
+    --text-dark:#1b1d29;
+    --text-gray:#8a8fa3;
+    --border:#eef0f5;
+    --bg:#f6f7fb;
+    --white:#ffffff;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',system-ui,-apple-system,Roboto,Arial,sans-serif;}
+  body{background:var(--bg);color:var(--text-dark);padding:24px;}
+  .page{max-width:1300px;margin:0 auto;}
+
+  /* HEADER */
+  .header{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;flex-wrap:wrap;gap:16px;}
+  .header-left{display:flex;align-items:center;gap:16px;}
+  .menu-icon{width:22px;height:16px;display:flex;flex-direction:column;justify-content:space-between;cursor:pointer;}
+  .menu-icon span{display:block;height:2px;background:var(--text-dark);border-radius:2px;}
+  .header-left h1{font-size:26px;font-weight:800;}
+
+  .header-right{display:flex;align-items:center;gap:14px;}
+  .search-box{position:relative;}
+  .search-box input{
+    width:280px;padding:11px 44px 11px 16px;border-radius:12px;border:1px solid var(--border);
+    background:var(--white);font-size:14px;outline:none;color:var(--text-dark);
+  }
+  .search-box input::placeholder{color:var(--text-gray);}
+  .search-box svg{position:absolute;right:14px;top:50%;transform:translateY(-50%);color:var(--text-gray);}
+
+  .date-pill{
+    display:flex;align-items:center;gap:10px;background:var(--white);border:1px solid var(--border);
+    border-radius:12px;padding:8px 14px;
+  }
+  .date-pill .date-text{font-size:13px;font-weight:600;line-height:1.3;}
+  .date-pill .date-text small{display:block;font-weight:400;color:var(--text-gray);font-size:12px;}
+  .avatar{
+    width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,var(--violet),#8b7cff);
+    color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;
+  }
+
+  /* FILTER CARD */
+  .filters-card{
+    background:var(--white);border-radius:16px;padding:20px 24px;display:flex;gap:28px;flex-wrap:wrap;
+    align-items:flex-end;margin-bottom:20px;box-shadow:0 1px 2px rgba(20,20,50,0.03);position:relative;z-index:30;
+  }
+  .filter-group{display:flex;flex-direction:column;gap:8px;flex:1;min-width:200px;position:relative;}
+  .filter-group label{font-size:13px;font-weight:700;color:var(--text-dark);}
+
+  /* CUSTOM DROPDOWN */
+  .custom-dd{position:relative;}
+  .dd-trigger{
+    display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:10px;
+    padding:10px 12px;background:var(--white);cursor:pointer;user-select:none;transition:border-color .15s ease;
+  }
+  .dd-trigger:hover{border-color:#d7d9e6;}
+  .custom-dd.open .dd-trigger{border-color:var(--violet);}
+  .dd-trigger .ic{
+    width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  }
+  .custom-dd.filiere .ic{background:var(--violet-light);color:var(--violet);}
+  .custom-dd.groupe .ic{background:#e6f0ff;color:#3b82f6;}
+  .dd-trigger .dd-label{flex:1;font-size:14px;font-weight:600;color:var(--text-dark);}
+  .dd-trigger .chevron{color:var(--text-gray);flex-shrink:0;transition:transform .15s ease;}
+  .custom-dd.open .chevron{transform:rotate(180deg);}
+  .dd-panel{
+    position:absolute;top:calc(100% + 6px);left:0;right:0;background:var(--white);border:1px solid var(--border);
+    border-radius:12px;box-shadow:0 10px 30px rgba(20,20,50,0.12);display:none;overflow:hidden;z-index:40;
+    max-height:240px;overflow-y:auto;
+  }
+  .custom-dd.open .dd-panel{display:block;}
+  .dd-option{padding:11px 14px;font-size:14px;font-weight:500;cursor:pointer;color:var(--text-dark);}
+  .dd-option:hover{background:var(--bg);}
+  .dd-option.selected{background:var(--violet-light);color:var(--violet);font-weight:700;}
+
+  /* CUSTOM DATE PICKER */
+  .date-wrap{
+    display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:10px;
+    padding:10px 12px;background:var(--white);cursor:pointer;position:relative;transition:border-color .15s ease;
+  }
+  .date-wrap:hover{border-color:#d7d9e6;}
+  .date-wrap.open{border-color:var(--violet);}
+  .date-wrap .date-display{flex:1;font-size:14px;font-weight:600;color:var(--text-dark);}
+  .date-wrap svg{color:var(--text-gray);flex-shrink:0;}
+
+  .cal-panel{
+    position:absolute;top:calc(100% + 6px);left:0;width:280px;background:var(--white);border:1px solid var(--border);
+    border-radius:14px;box-shadow:0 10px 30px rgba(20,20,50,0.14);display:none;padding:14px;z-index:50;
+  }
+  .date-wrap.open .cal-panel{display:block;}
+  .cal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+  .cal-header button{
+    width:28px;height:28px;border-radius:8px;border:1px solid var(--border);background:var(--white);
+    cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-dark);
+  }
+  .cal-header button:hover{background:var(--bg);}
+  .cal-title{font-size:14px;font-weight:700;}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center;}
+  .cal-grid .cal-dow{font-size:11px;color:var(--text-gray);font-weight:700;padding:4px 0;}
+  .cal-day{
+    font-size:13px;padding:7px 0;border-radius:8px;cursor:pointer;color:var(--text-dark);font-weight:500;
+  }
+  .cal-day:hover{background:var(--bg);}
+  .cal-day.empty{cursor:default;}
+  .cal-day.selected{background:var(--violet);color:#fff;font-weight:700;}
+  .cal-day.today:not(.selected){border:1px solid var(--violet);}
+
+  .btn-save{
+    display:flex;align-items:center;gap:8px;background:var(--violet);color:#fff;border:none;
+    padding:13px 20px;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap;
+    transition:background .15s ease;
+  }
+  .btn-save:hover{background:#4a3ce0;}
+
+  /* STAT CARDS */
+  .stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px;}
+  .stat-card{
+    background:var(--white);border-radius:16px;padding:20px;display:flex;align-items:center;gap:14px;
+    box-shadow:0 1px 2px rgba(20,20,50,0.03);
+  }
+  .stat-icon{
+    width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  }
+  .stat-icon.blue{background:var(--violet-light);color:var(--violet);}
+  .stat-icon.green{background:var(--green-bg);color:var(--green);}
+  .stat-icon.red{background:var(--red-bg);color:var(--red);}
+  .stat-icon.orange{background:var(--orange-bg);color:var(--orange);}
+  .stat-info .stat-value{display:flex;align-items:baseline;gap:8px;}
+  .stat-info .stat-value h2{font-size:24px;font-weight:800;}
+  .stat-info .stat-value .pct{font-size:13px;font-weight:700;}
+  .stat-value .pct.green-txt{color:var(--green);}
+  .stat-value .pct.red-txt{color:var(--red);}
+  .stat-info p{font-size:13px;color:var(--text-gray);margin-top:2px;}
+
+  .time-edit{display:flex;align-items:center;gap:4px;}
+  .time-edit .time-part{
+    font-size:19px;font-weight:800;color:var(--text-dark);border:none;background:transparent;
+    width:32px;text-align:center;outline:none;font-family:inherit;padding:2px 0;border-radius:4px;
+  }
+  .time-edit .time-part:focus{background:var(--violet-light);color:var(--violet);}
+  .time-edit .colon, .time-edit .dash{font-size:19px;font-weight:800;color:var(--text-dark);}
+  .time-edit .dash{margin:0 4px;color:var(--text-gray);}
+
+  .custom-dd.seance{position:relative;margin-top:2px;}
+  .dd-trigger.seance-trigger{
+    border:none;padding:0;background:transparent;gap:8px;
+  }
+  .seance-trigger .seance-label{font-size:19px;font-weight:800;color:var(--text-dark);flex:none;}
+  .seance-trigger .chevron{color:var(--text-gray);}
+  .custom-dd.seance .dd-panel{min-width:170px;left:0;right:auto;}
+
+  /* TABLE */
+  .table-card{background:var(--white);border-radius:16px;padding:22px 24px 8px;box-shadow:0 1px 2px rgba(20,20,50,0.03);}
+  .table-card h3{font-size:16px;font-weight:800;margin-bottom:16px;}
+  table{width:100%;border-collapse:collapse;}
+  thead th{
+    text-align:left;font-size:12px;color:var(--text-gray);font-weight:700;text-transform:none;
+    padding:10px 14px;border-bottom:1px solid var(--border);
+  }
+  tbody td{padding:14px;border-bottom:1px solid var(--border);font-size:14px;vertical-align:middle;}
+  tbody tr:last-child td{border-bottom:none;}
+  .col-num{width:50px;color:var(--text-gray);}
+  .col-name{font-weight:600;}
+
+  .status-toggle{display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none;}
+  .switch{
+    width:42px;height:24px;border-radius:20px;background:var(--red);position:relative;
+    transition:background .2s ease;flex-shrink:0;
+  }
+  .switch::after{
+    content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;
+    background:#fff;transition:left .2s ease;box-shadow:0 1px 3px rgba(0,0,0,0.2);
+  }
+  .status-toggle.present .switch{background:var(--green);}
+  .status-toggle.present .switch::after{left:21px;}
+  .status-label{font-size:14px;font-weight:600;color:var(--text-gray);}
+  .status-toggle.present .status-label{color:var(--green);}
+  .status-toggle:not(.present) .status-label{color:var(--red);}
+
+  @media (max-width:900px){
+    .stats-row{grid-template-columns:repeat(2,1fr);}
+    .search-box input{width:180px;}
+    table{display:block;overflow-x:auto;white-space:nowrap;}
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-left">
+      <a href="dashboard.html" class="menu-icon" title="Retour au Dashboard" style="text-decoration:none;"><span></span><span></span><span></span></a>
+      <div>
+        <h1>Présence</h1>
+        <div style="font-size:13px;color:var(--text-gray);margin-top:2px;"><a href="dashboard.html" style="color:var(--text-gray);text-decoration:none;">Dashboard</a> &nbsp;›&nbsp; <span style="color:var(--text-dark);font-weight:600;">Présence</span></div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="search-box">
+        <input type="text" id="searchInput" placeholder="Rechercher un élève...">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </div>
+      <div class="date-pill">
+        <div class="date-text" id="topDate">15 Mai 2024<small>Mercredi</small></div>
+      </div>
+      <div class="avatar">A</div>
+    </div>
+  </div>
+
+  <!-- FILTERS -->
+  <div class="filters-card">
+    <div class="filter-group">
+      <label>Filière</label>
+      <div class="custom-dd filiere" id="filiereDD">
+        <div class="dd-trigger">
+          <div class="ic">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          </div>
+          <div class="dd-label" id="filiereLabel">Bac Informatique</div>
+          <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+        <div class="dd-panel" id="filierePanel"></div>
+      </div>
+    </div>
+
+    <div class="filter-group">
+      <label>Groupe</label>
+      <div class="custom-dd groupe" id="groupeDD">
+        <div class="dd-trigger">
+          <div class="ic">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </div>
+          <div class="dd-label" id="groupeLabel">Info A</div>
+          <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+        <div class="dd-panel" id="groupePanel"></div>
+      </div>
+    </div>
+
+    <div class="filter-group">
+      <label>Date</label>
+      <div class="date-wrap" id="dateWrap">
+        <div class="date-display" id="dateDisplay">15/05/2024</div>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <div class="cal-panel" id="calPanel">
+          <div class="cal-header">
+            <button id="calPrev" type="button">&#8249;</button>
+            <div class="cal-title" id="calTitle">Mai 2024</div>
+            <button id="calNext" type="button">&#8250;</button>
+          </div>
+          <div class="cal-grid" id="calGrid"></div>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn-save" id="saveBtn" type="button">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+      Enregistrer la présence
+    </button>
+  </div>
+
+  <!-- STATS -->
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-icon blue">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      </div>
+      <div class="stat-info">
+        <div class="stat-value"><h2 id="totalCount">28</h2></div>
+        <p>Total élèves</p>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-icon green">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <div class="stat-info">
+        <div class="stat-value"><h2 id="presentCount">22</h2><span class="pct green-txt" id="presentPct">78.6%</span></div>
+        <p>Présents</p>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-icon red">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+      </div>
+      <div class="stat-info">
+        <div class="stat-value"><h2 id="absentCount">6</h2><span class="pct red-txt" id="absentPct">21.4%</span></div>
+        <p>Absents</p>
+      </div>
+    </div>
+
+    <div class="stat-card time">
+      <div class="stat-icon orange">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      </div>
+      <div class="stat-info">
+        <div class="custom-dd seance" id="seanceDD">
+          <div class="dd-trigger seance-trigger">
+            <div class="dd-label seance-label" id="seanceLabel">17:00 - 18:30</div>
+            <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          </div>
+          <div class="dd-panel" id="seancePanel"></div>
+        </div>
+        <p>Heure de la séance</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- TABLE -->
+  <div class="table-card">
+    <h3>Liste des élèves</h3>
+    <table>
+      <thead>
+        <tr>
+          <th class="col-num">N°</th>
+          <th>Nom et Prénom</th>
+          <th>Statut</th>
+        </tr>
+      </thead>
+      <tbody id="studentsBody"></tbody>
+    </table>
+  </div>
+
+</div>
+
+<script>
+/* ---------- DONNEES ---------- */
+const groupesParFiliere = {
+  "Bac Informatique": ["Info A", "Info B", "Info C"],
+  "Bac Technique": ["Tech A", "Tech B"],
+  "Bac Sciences Exp": ["Sc Exp A", "Sc Exp B", "Sc Exp C"],
+  "Bac Mathématiques": ["Math A", "Math B"]
+};
+const filieresList = Object.keys(groupesParFiliere);
+
+/* Elèves par Filière > Groupe. Chaque groupe a sa propre liste. */
+const studentsData = {
+  "Bac Informatique": {
+    "Info A": [
+      {name:"Ahmed Ben Ali", present:true},
+      {name:"Youssef Mahjoub", present:true},
+      {name:"Karim Jaziri", present:false},
+      {name:"Ilyes Chemli", present:true},
+      {name:"Mohamed Salah", present:true},
+      {name:"Rania Nasri", present:false},
+      {name:"Hedi Belhaj", present:true},
+      {name:"Nour Bouaicha", present:true},
+      {name:"Sara Bouzid", present:false},
+      {name:"Ines Trabelsi", present:true},
+    ],
+    "Info B": [
+      {name:"Aymen Ferjani", present:true},
+      {name:"Wassim Toumi", present:true},
+      {name:"Emna Gharbi", present:true},
+      {name:"Yassine Kaddour", present:false},
+      {name:"Salma Riahi", present:true},
+      {name:"Bilel Mzoughi", present:false},
+    ],
+    "Info C": [
+      {name:"Nada Chaabane", present:true},
+      {name:"Firas Baccouche", present:true},
+      {name:"Amira Sassi", present:false},
+      {name:"Oussama Jendoubi", present:true},
+    ]
+  },
+  "Bac Technique": {
+    "Tech A": [
+      {name:"Rayen Hammami", present:true},
+      {name:"Malek Souissi", present:true},
+      {name:"Chaima Bouazizi", present:false},
+      {name:"Anis Ghanmi", present:true},
+      {name:"Dorra Larbi", present:true},
+    ],
+    "Tech B": [
+      {name:"Seif Ayadi", present:false},
+      {name:"Mariem Slama", present:true},
+      {name:"Houssem Meddeb", present:true},
+    ]
+  },
+  "Bac Sciences Exp": {
+    "Sc Exp A": [
+      {name:"Aziz Trabelsi", present:true},
+      {name:"Nour El Houda Amri", present:true},
+      {name:"Skander Nouri", present:false},
+      {name:"Rim Boukadida", present:true},
+    ],
+    "Sc Exp B": [
+      {name:"Mehdi Zouari", present:true},
+      {name:"Ines Cherif", present:false},
+      {name:"Tarek Loussaief", present:true},
+    ],
+    "Sc Exp C": [
+      {name:"Sirine Hajji", present:true},
+      {name:"Bassem Guesmi", present:true},
+    ]
+  },
+  "Bac Mathématiques": {
+    "Math A": [
+      {name:"Iheb Marzouki", present:true},
+      {name:"Yosra Ben Salem", present:false},
+      {name:"Adem Fakhfakh", present:true},
+      {name:"Lina Werghi", present:true},
+    ],
+    "Math B": [
+      {name:"Khalil Abidi", present:true},
+      {name:"Hana Sfaxi", present:false},
+      {name:"Zied Mkaouar", present:true},
+    ]
+  }
+};
+
+// Liste actuellement affichée (référence à l'un des tableaux ci-dessus)
+let students = studentsData["Bac Informatique"]["Info A"];
+
+/* ---------- DROPDOWN GENERIQUE ---------- */
+function setupDropdown(ddId, panelId, labelId, options, onSelect, initial){
+  const dd = document.getElementById(ddId);
+  const trigger = dd.querySelector('.dd-trigger');
+  const panel = document.getElementById(panelId);
+  const label = document.getElementById(labelId);
+  let current = initial;
+
+  function renderOptions(){
+    panel.innerHTML = "";
+    options.forEach(opt => {
+      const div = document.createElement('div');
+      div.className = 'dd-option' + (opt === current ? ' selected' : '');
+      div.textContent = opt;
+      div.addEventListener('click', (e) => {
+        e.stopPropagation();
+        current = opt;
+        label.textContent = opt;
+        closeAllDropdowns();
+        renderOptions();
+        onSelect(opt);
+      });
+      panel.appendChild(div);
+    });
+  }
+
+  trigger.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const isOpen = dd.classList.contains('open');
+    closeAllDropdowns();
+    closeCalendar();
+    if(!isOpen){ dd.classList.add('open'); }
+  });
+
+  renderOptions();
+  return {
+    setOptions(newOptions, newCurrent){
+      options = newOptions;
+      current = newCurrent;
+      label.textContent = newCurrent || '';
+      renderOptions();
+    },
+    getValue(){ return current; }
+  };
+}
+
+function closeAllDropdowns(){
+  document.querySelectorAll('.custom-dd.open').forEach(d => d.classList.remove('open'));
+}
+
+/* ---------- INITIALISATION DROPDOWNS ---------- */
+let groupeDropdown;
+
+function switchStudentList(filiere, groupe){
+  students = (studentsData[filiere] && studentsData[filiere][groupe]) || [];
+  document.getElementById('searchInput').value = "";
+  renderTable();
+  updateStats();
+}
+
+const filiereDropdown = setupDropdown('filiereDD','filierePanel','filiereLabel', filieresList, (selected) => {
+  const groupes = groupesParFiliere[selected] || [];
+  groupeDropdown.setOptions(groupes, groupes[0]);
+  switchStudentList(selected, groupes[0]);
+}, "Bac Informatique");
+
+groupeDropdown = setupDropdown('groupeDD','groupePanel','groupeLabel', groupesParFiliere["Bac Informatique"], (selectedGroupe) => {
+  switchStudentList(filiereDropdown.getValue(), selectedGroupe);
+}, "Info A");
+
+/* ---------- CALENDRIER CUSTOM ---------- */
+const jours = ["Dim","Lun","Mar","Mer","Jeu","Ven","Sam"];
+const joursComplets = ["Dimanche","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"];
+const moisNoms = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
+
+let selectedDate = new Date(2024, 4, 15); // 15 Mai 2024
+let viewMonth = selectedDate.getMonth();
+let viewYear = selectedDate.getFullYear();
+
+const dateWrap = document.getElementById('dateWrap');
+const calPanel = document.getElementById('calPanel');
+const calGrid = document.getElementById('calGrid');
+const calTitle = document.getElementById('calTitle');
+const dateDisplay = document.getElementById('dateDisplay');
+const topDate = document.getElementById('topDate');
+
+function pad(n){ return n.toString().padStart(2,'0'); }
+
+function updateDateDisplay(){
+  dateDisplay.textContent = `${pad(selectedDate.getDate())}/${pad(selectedDate.getMonth()+1)}/${selectedDate.getFullYear()}`;
+  topDate.innerHTML = `${selectedDate.getDate()} ${moisNoms[selectedDate.getMonth()]} ${selectedDate.getFullYear()}<small>${joursComplets[selectedDate.getDay()]}</small>`;
+}
+
+function renderCalendar(){
+  calTitle.textContent = `${moisNoms[viewMonth]} ${viewYear}`;
+  calGrid.innerHTML = "";
+  jours.forEach(j => {
+    const dow = document.createElement('div');
+    dow.className = 'cal-dow';
+    dow.textContent = j;
+    calGrid.appendChild(dow);
+  });
+
+  const firstDay = new Date(viewYear, viewMonth, 1);
+  let startOffset = firstDay.getDay(); // 0=dim
+  const daysInMonth = new Date(viewYear, viewMonth+1, 0).getDate();
+  const today = new Date();
+
+  for(let i=0;i<startOffset;i++){
+    const empty = document.createElement('div');
+    empty.className = 'cal-day empty';
+    calGrid.appendChild(empty);
+  }
+
+  for(let d=1; d<=daysInMonth; d++){
+    const cell = document.createElement('div');
+    cell.className = 'cal-day';
+    cell.textContent = d;
+    const isSelected = selectedDate.getDate()===d && selectedDate.getMonth()===viewMonth && selectedDate.getFullYear()===viewYear;
+    const isToday = today.getDate()===d && today.getMonth()===viewMonth && today.getFullYear()===viewYear;
+    if(isSelected) cell.classList.add('selected');
+    if(isToday) cell.classList.add('today');
+    cell.addEventListener('click', (e) => {
+      e.stopPropagation();
+      selectedDate = new Date(viewYear, viewMonth, d);
+      updateDateDisplay();
+      renderCalendar();
+      closeCalendar();
+    });
+    calGrid.appendChild(cell);
+  }
+}
+
+function openCalendar(){
+  closeAllDropdowns();
+  dateWrap.classList.add('open');
+  renderCalendar();
+}
+function closeCalendar(){
+  dateWrap.classList.remove('open');
+}
+
+dateWrap.addEventListener('click', (e) => {
+  e.stopPropagation();
+  if(dateWrap.classList.contains('open')){
+    closeCalendar();
+  } else {
+    openCalendar();
+  }
+});
+calPanel.addEventListener('click', (e) => e.stopPropagation());
+
+document.getElementById('calPrev').addEventListener('click', (e) => {
+  e.stopPropagation();
+  viewMonth--;
+  if(viewMonth < 0){ viewMonth = 11; viewYear--; }
+  renderCalendar();
+});
+document.getElementById('calNext').addEventListener('click', (e) => {
+  e.stopPropagation();
+  viewMonth++;
+  if(viewMonth > 11){ viewMonth = 0; viewYear++; }
+  renderCalendar();
+});
+
+document.addEventListener('click', () => {
+  closeAllDropdowns();
+  closeCalendar();
+});
+
+updateDateDisplay();
+
+/* ---------- SEANCE (choix parmi une liste) ---------- */
+const seancesList = [
+  "08:00 - 09:30",
+  "09:30 - 11:00",
+  "11:00 - 12:30",
+  "13:30 - 15:00",
+  "15:00 - 16:30",
+  "17:00 - 18:30"
+];
+
+const seanceDropdown = setupDropdown('seanceDD','seancePanel','seanceLabel', seancesList, (selected) => {
+  // La séance choisie détermine la présence à enregistrer
+}, "17:00 - 18:30");
+
+/* ---------- TABLEAU ELEVES ---------- */
+const tbody = document.getElementById('studentsBody');
+
+function renderTable(filter=""){
+  tbody.innerHTML = "";
+  const filtered = students.filter(s => s.name.toLowerCase().includes(filter.toLowerCase()));
+  filtered.forEach((s) => {
+    const realIndex = students.indexOf(s);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="col-num">${realIndex+1}</td>
+      <td class="col-name">${s.name}</td>
+      <td>
+        <div class="status-toggle ${s.present ? 'present' : ''}" data-index="${realIndex}">
+          <div class="switch"></div>
+          <span class="status-label">${s.present ? 'Présent' : 'Absent'}</span>
+        </div>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  document.querySelectorAll('.status-toggle').forEach(el => {
+    el.addEventListener('click', () => {
+      const idx = el.dataset.index;
+      students[idx].present = !students[idx].present;
+      renderTable(document.getElementById('searchInput').value);
+      updateStats();
+    });
+  });
+}
+
+function updateStats(){
+  const total = students.length;
+  const presentCount = students.filter(s => s.present).length;
+  const absentCount = total - presentCount;
+  document.getElementById('totalCount').textContent = total;
+  document.getElementById('presentCount').textContent = presentCount;
+  document.getElementById('absentCount').textContent = absentCount;
+  document.getElementById('presentPct').textContent = ((presentCount/total)*100).toFixed(1) + "%";
+  document.getElementById('absentPct').textContent = ((absentCount/total)*100).toFixed(1) + "%";
+}
+
+document.getElementById('searchInput').addEventListener('input', (e) => {
+  renderTable(e.target.value);
+});
+
+document.getElementById('saveBtn').addEventListener('click', () => {
+  const btn = document.getElementById('saveBtn');
+  const original = btn.innerHTML;
+  btn.innerHTML = "✓ Présence enregistrée";
+  btn.style.background = "#1fb469";
+  setTimeout(() => {
+    btn.innerHTML = original;
+    btn.style.background = "";
+  }, 1800);
+});
+
+renderTable();
+updateStats();
+</script>
+</body>
+</html>

@@ -1,0 +1,1097 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Séances — SmartTeacher</title>
+<style>
+  :root{
+    --primary: #6C5CE7;
+    --primary-dark: #5843e0;
+    --primary-light: #EDEBFC;
+    --navy: #1E2140;
+    --navy-soft: #4B4E6D;
+    --bg: #F6F7FB;
+    --card-bg: #FFFFFF;
+    --border: #E7E8F1;
+    --text-main: #1E2140;
+    --text-soft: #8A8CA5;
+    --green-bg: #E6F8EF;
+    --green-text: #1BA262;
+    --orange-bg: #FFF3E2;
+    --orange-text: #E08B1D;
+    --blue-bg: #E9F1FF;
+    --blue-text: #2F6FE4;
+    --red-bg: #FDEBEC;
+    --red-text: #E14954;
+    --gray-bg: #F0F1F5;
+    --gray-text: #7A7C93;
+    --purple-bg: #EEEBFC;
+    --purple-text: #6C5CE7;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(30,33,64,0.05);
+  }
+
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    font-family: 'Segoe UI', Roboto, -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--text-main);
+    padding: 28px;
+  }
+
+  .page{ max-width: 1280px; margin: 0 auto; }
+
+  /* ===== Header ===== */
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom: 24px; gap: 20px;
+  }
+  .topbar-left{ display:flex; align-items:center; gap:16px; }
+  .menu-btn{
+    width:40px; height:40px; border-radius:10px; border:none; background:transparent;
+    display:flex; align-items:center; justify-content:center; cursor:pointer; color: var(--navy);
+  }
+  .menu-btn:hover{ background: var(--border); }
+  .page-title{ font-size: 22px; font-weight: 700; color: var(--navy); }
+
+  .topbar-right{ display:flex; align-items:center; gap:14px; flex:1; justify-content:flex-end; }
+
+  .search-box{
+    position:relative; flex:1; max-width: 380px;
+  }
+  .search-box input{
+    width:100%; padding:11px 40px 11px 16px; border-radius:10px; border:1px solid var(--border);
+    background: var(--card-bg); font-size:14px; color: var(--text-main); outline:none;
+  }
+  .search-box input:focus{ border-color: var(--primary); }
+  .search-box svg{ position:absolute; right:14px; top:50%; transform:translateY(-50%); color: var(--text-soft); }
+
+  .icon-btn{
+    position:relative; width:42px; height:42px; border-radius:10px; border:1px solid var(--border);
+    background: var(--card-bg); display:flex; align-items:center; justify-content:center; cursor:pointer; color: var(--navy);
+    flex-shrink:0;
+  }
+  .icon-btn:hover{ background: var(--primary-light); border-color: var(--primary); }
+  .badge{
+    position:absolute; top:-5px; right:-5px; background:#E14954; color:#fff; font-size:10px; font-weight:700;
+    width:18px; height:18px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  }
+
+  .date-picker{
+    display:flex; align-items:center; gap:10px; padding:8px 14px; border-radius:10px; border:1px solid var(--border);
+    background: var(--card-bg); cursor:pointer; flex-shrink:0;
+  }
+  .date-picker .lbl{ font-size:13px; font-weight:600; color: var(--navy); line-height:1.3; }
+  .date-picker .sub{ font-size:11px; color: var(--text-soft); }
+
+  /* ===== Dropdowns (notifications / calendar) ===== */
+  .dropdown-wrap{ position:relative; flex-shrink:0; }
+
+  .notif-panel, .cal-panel{
+    position:absolute; top:calc(100% + 10px); right:0; background:#fff; border-radius:14px;
+    box-shadow: 0 16px 40px rgba(30,33,64,0.16); border:1px solid var(--border);
+    display:none; z-index:60; animation: dropIn 0.15s ease;
+  }
+  .notif-panel.show, .cal-panel.show{ display:block; }
+  @keyframes dropIn{ from{ opacity:0; transform:translateY(-6px); } to{ opacity:1; transform:translateY(0); } }
+
+  .notif-panel{ width:330px; padding:0; overflow:hidden; }
+  .notif-head{
+    display:flex; align-items:center; justify-content:space-between; padding:14px 16px;
+    border-bottom:1px solid var(--border); font-size:13.5px; font-weight:700; color: var(--navy);
+  }
+  .notif-head button{
+    background:none; border:none; color: var(--primary); font-size:12px; font-weight:600; cursor:pointer;
+  }
+  .notif-head button:hover{ text-decoration:underline; }
+  .notif-list{ max-height:340px; overflow-y:auto; }
+  .notif-item{
+    display:flex; gap:12px; padding:13px 16px; border-bottom:1px solid var(--border); cursor:pointer;
+  }
+  .notif-item:last-child{ border-bottom:none; }
+  .notif-item:hover{ background: var(--bg); }
+  .notif-item.unread{ background: #FAFAFF; }
+  .notif-dot-icon{
+    width:34px; height:34px; border-radius:9px; display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  }
+  .notif-item .n-text{ flex:1; min-width:0; }
+  .notif-item .n-title{ font-size:13px; font-weight:700; color: var(--navy); margin-bottom:2px; }
+  .notif-item .n-sub{ font-size:12px; color: var(--text-soft); line-height:1.4; }
+  .notif-item .n-time{ font-size:10.5px; color: var(--text-soft); margin-top:4px; }
+  .notif-empty{ padding:34px 16px; text-align:center; font-size:13px; color: var(--text-soft); }
+
+  .cal-panel{ width:280px; padding:16px; }
+  .cal-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+  .cal-head span{ font-size:13.5px; font-weight:700; color: var(--navy); }
+  .cal-head button{
+    width:26px; height:26px; border-radius:7px; border:1px solid var(--border); background: var(--bg);
+    display:flex; align-items:center; justify-content:center; cursor:pointer; color: var(--navy-soft);
+  }
+  .cal-head button:hover{ background: var(--primary-light); color: var(--primary); }
+  .cal-weekdays{
+    display:grid; grid-template-columns:repeat(7,1fr); text-align:center; font-size:11px; font-weight:700;
+    color: var(--text-soft); margin-bottom:6px;
+  }
+  .cal-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:3px; }
+  .cal-grid .cal-day{
+    aspect-ratio:1; display:flex; align-items:center; justify-content:center; font-size:12.5px;
+    border-radius:8px; cursor:pointer; color: var(--text-main);
+  }
+  .cal-grid .cal-day:hover{ background: var(--primary-light); }
+  .cal-grid .cal-day.muted{ color: var(--text-soft); opacity:0.45; }
+  .cal-grid .cal-day.today{ border:1.5px solid var(--primary); font-weight:700; }
+  .cal-grid .cal-day.selected{ background: var(--primary); color:#fff; font-weight:700; }
+  .cal-grid .cal-day.has-seance::after{
+    content:''; display:block; width:4px; height:4px; border-radius:50%; background: var(--primary);
+    margin-top:20px; position:relative; top:-8px;
+  }
+
+  /* ===== Stat cards ===== */
+  .stats{
+    display:grid; grid-template-columns: repeat(4, 1fr); gap:18px; margin-bottom:22px;
+  }
+  .stat-card{
+    background: var(--card-bg); border-radius: var(--radius); box-shadow: var(--shadow);
+    padding: 20px; display:flex; align-items:flex-start; gap:14px;
+  }
+  .stat-icon{
+    width:44px; height:44px; border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  }
+  .stat-card h4{ font-size:13px; font-weight:600; color: var(--text-soft); margin-bottom:6px; }
+  .stat-card .num{ font-size:24px; font-weight:700; color: var(--navy); line-height:1; margin-bottom:4px; }
+  .stat-card .desc{ font-size:12px; color: var(--text-soft); }
+
+  /* ===== Filters ===== */
+  .filters{
+    background: var(--card-bg); border-radius: var(--radius); box-shadow: var(--shadow);
+    padding: 20px; margin-bottom:22px;
+    display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap;
+  }
+  .filter-group{ display:flex; flex-direction:column; gap:6px; }
+  .filter-group label{ font-size:12.5px; font-weight:600; color: var(--navy-soft); }
+  .filter-group.period{ flex-direction:row; align-items:center; }
+  .date-input{
+    padding:9px 12px; border-radius:9px; border:1px solid var(--border); font-size:13px; color: var(--text-main);
+    background: var(--bg); outline:none; width:130px;
+  }
+  .date-sep{ color: var(--text-soft); padding: 0 4px; align-self:flex-end; margin-bottom:9px; }
+
+  select.dd{
+    padding:9px 32px 9px 12px; border-radius:9px; border:1px solid var(--border); font-size:13px;
+    background: var(--bg); color: var(--text-main); outline:none; min-width:170px; cursor:pointer;
+    appearance:none; -webkit-appearance:none;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M1 1l4 4 4-4' stroke='%238A8CA5' stroke-width='1.5' fill='none' stroke-linecap='round'/></svg>");
+    background-repeat:no-repeat; background-position: right 12px center;
+  }
+  select.dd:focus{ border-color: var(--primary); }
+
+  .btn-reset{
+    display:flex; align-items:center; gap:8px; padding:10px 16px; border-radius:9px; border:1px solid var(--border);
+    background: var(--bg); font-size:13.5px; font-weight:600; color: var(--navy); cursor:pointer;
+  }
+  .btn-reset:hover{ background: var(--border); }
+
+  .btn-primary{
+    display:flex; align-items:center; gap:8px; padding:10px 18px; border-radius:9px; border:none;
+    background: var(--primary); color:#fff; font-size:13.5px; font-weight:600; cursor:pointer; margin-left:auto;
+    box-shadow: 0 4px 12px rgba(108,92,231,0.35);
+  }
+  .btn-primary:hover{ background: var(--primary-dark); }
+
+  /* ===== Table card ===== */
+  .table-card{
+    background: var(--card-bg); border-radius: var(--radius); box-shadow: var(--shadow); padding: 22px;
+  }
+  .table-card h3{ font-size:16px; font-weight:700; color: var(--navy); margin-bottom:16px; }
+
+  .table-wrap{ overflow-x:auto; }
+  table{ width:100%; border-collapse:collapse; min-width: 980px; }
+  thead th{
+    text-align:left; font-size:12px; font-weight:700; color: var(--text-soft); text-transform:none;
+    padding: 10px 12px; border-bottom: 1px solid var(--border); white-space:nowrap;
+  }
+  tbody td{
+    padding: 14px 12px; border-bottom: 1px solid var(--border); font-size:13.5px; color: var(--text-main); vertical-align:middle;
+  }
+  tbody tr:hover{ background: #FBFBFE; }
+  tbody tr:last-child td{ border-bottom:none; }
+
+  .cell-date .d1{ font-weight:600; }
+  .cell-date .d2{ font-size:11.5px; color: var(--text-soft); }
+
+  .chip{ display:inline-block; padding:5px 12px; border-radius:20px; font-size:12px; font-weight:700; }
+  .chip-cours{ background: var(--purple-bg); color: var(--purple-text); }
+  .chip-revision{ background: var(--orange-bg); color: var(--orange-text); }
+
+  .duration{ display:inline-block; padding:4px 10px; border-radius:8px; font-size:12px; font-weight:600; }
+  .dur-2h{ background: var(--green-bg); color: var(--green-text); }
+  .dur-1h30{ background: var(--orange-bg); color: var(--orange-text); }
+
+  .status{ display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:700; }
+  .status::before{ content:''; width:7px; height:7px; border-radius:50%; }
+  .status-avenir{ color: var(--green-text); }
+  .status-avenir::before{ background: var(--green-text); }
+  .status-terminee{ color: var(--blue-text); }
+  .status-terminee::before{ background: var(--blue-text); }
+  .status-annulee{ color: var(--gray-text); }
+  .status-annulee::before{ background: var(--gray-text); }
+
+  .actions{ display:flex; gap:8px; }
+  .act-btn{
+    width:32px; height:32px; border-radius:8px; border:1px solid var(--border); background: var(--bg);
+    display:flex; align-items:center; justify-content:center; cursor:pointer; color: var(--navy-soft);
+  }
+  .act-btn.view:hover{ background: var(--blue-bg); color: var(--blue-text); border-color: var(--blue-bg); }
+  .act-btn.edit:hover{ background: var(--purple-bg); color: var(--purple-text); border-color: var(--purple-bg); }
+  .act-btn.del:hover{ background: var(--red-bg); color: var(--red-text); border-color: var(--red-bg); }
+
+  .empty-row td{ text-align:center; color: var(--text-soft); padding: 40px 0; font-size:14px; }
+
+  /* ===== Footer / pagination ===== */
+  .table-footer{
+    display:flex; align-items:center; justify-content:space-between; margin-top:18px; flex-wrap:wrap; gap:12px;
+  }
+  .total-txt{ font-size:13.5px; color: var(--text-soft); }
+  .total-txt b{ color: var(--primary); font-weight:700; cursor:pointer; }
+
+  .footer-right{ display:flex; align-items:center; gap:14px; }
+  select.perpage{
+    padding:8px 30px 8px 12px; border-radius:9px; border:1px solid var(--border); font-size:13px;
+    background: var(--card-bg); color: var(--text-main); outline:none; cursor:pointer;
+    appearance:none; -webkit-appearance:none;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M1 1l4 4 4-4' stroke='%238A8CA5' stroke-width='1.5' fill='none' stroke-linecap='round'/></svg>");
+    background-repeat:no-repeat; background-position: right 12px center;
+  }
+  .pagination{ display:flex; align-items:center; gap:6px; }
+  .page-btn{
+    width:34px; height:34px; border-radius:8px; border:1px solid var(--border); background: var(--card-bg);
+    display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:13px; color: var(--navy); font-weight:600;
+  }
+  .page-btn:hover:not(:disabled){ background: var(--primary-light); }
+  .page-btn:disabled{ opacity:0.4; cursor:not-allowed; }
+  .page-btn.active{ background: var(--primary); color:#fff; border-color: var(--primary); }
+
+  /* ===== Modal ===== */
+  .overlay{
+    position:fixed; inset:0; background: rgba(30,33,64,0.45); display:none; align-items:center; justify-content:center;
+    z-index:100; padding: 20px;
+  }
+  .overlay.show{ display:flex; }
+  .modal{
+    background:#fff; border-radius:16px; width:100%; max-width:520px; padding:26px; box-shadow: 0 20px 60px rgba(30,33,64,0.25);
+    max-height:90vh; overflow-y:auto;
+  }
+  .modal h3{ font-size:18px; font-weight:700; color: var(--navy); margin-bottom:20px; }
+  .form-row{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px; }
+  .form-row.full{ grid-template-columns:1fr; }
+  .form-field label{ display:block; font-size:12.5px; font-weight:600; color: var(--navy-soft); margin-bottom:6px; }
+  .form-field input, .form-field select{
+    width:100%; padding:10px 12px; border-radius:9px; border:1px solid var(--border); font-size:13.5px; outline:none;
+    background: var(--bg); color: var(--text-main);
+  }
+  .form-field input:focus, .form-field select:focus{ border-color: var(--primary); }
+  .modal-actions{ display:flex; justify-content:flex-end; gap:10px; margin-top:20px; }
+  .btn-cancel{
+    padding:10px 18px; border-radius:9px; border:1px solid var(--border); background:#fff; font-weight:600;
+    font-size:13.5px; color: var(--navy); cursor:pointer;
+  }
+  .btn-cancel:hover{ background: var(--bg); }
+
+  .confirm-modal{ max-width:400px; text-align:center; }
+  .confirm-modal .warn-icon{
+    width:56px; height:56px; border-radius:50%; background: var(--red-bg); color: var(--red-text);
+    display:flex; align-items:center; justify-content:center; margin: 0 auto 16px;
+  }
+  .confirm-modal p{ font-size:14px; color: var(--text-soft); margin-bottom:22px; }
+  .confirm-actions{ display:flex; gap:10px; justify-content:center; }
+  .btn-danger{
+    padding:10px 20px; border-radius:9px; border:none; background: var(--red-text); color:#fff; font-weight:600;
+    font-size:13.5px; cursor:pointer;
+  }
+
+  .toast{
+    position:fixed; bottom:24px; right:24px; background: var(--navy); color:#fff; padding:14px 20px; border-radius:10px;
+    font-size:13.5px; font-weight:600; box-shadow: 0 10px 30px rgba(0,0,0,0.2); z-index:200;
+    display:flex; align-items:center; gap:10px; transform: translateY(20px); opacity:0; transition: all 0.25s ease;
+    pointer-events:none;
+  }
+  .toast.show{ transform: translateY(0); opacity:1; }
+  .toast .dot{ width:8px; height:8px; border-radius:50%; background:#4ADE80; }
+
+  @media (max-width: 900px){
+    .stats{ grid-template-columns:1fr 1fr; }
+    .topbar{ flex-wrap:wrap; }
+    .topbar-right{ order:3; }
+  }
+  @media (max-width: 560px){
+    .stats{ grid-template-columns:1fr; }
+    .form-row{ grid-template-columns:1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Topbar -->
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="page-title">Séances</div>
+    </div>
+    <div class="topbar-right">
+      <div class="search-box">
+        <input id="searchInput" type="text" placeholder="Rechercher un élève, groupe, séance...">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      </div>
+      <div class="dropdown-wrap">
+        <button class="icon-btn" id="notifBtn" title="Notifications">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg>
+        </button>
+        <div class="notif-panel" id="notifPanel">
+          <div class="notif-head">
+            <span>Notifications</span>
+            <button type="button" id="notifClearAll">Tout marquer comme lu</button>
+          </div>
+          <div class="notif-list" id="notifList"></div>
+        </div>
+      </div>
+      <div class="dropdown-wrap">
+        <button class="icon-btn" id="calBtn" title="Calendrier">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+        </button>
+        <div class="cal-panel" id="calPanel">
+          <div class="cal-head">
+            <button type="button" id="calPrev">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M15 18l-6-6 6-6"/></svg>
+            </button>
+            <span id="calMonthLabel">Mai 2024</span>
+            <button type="button" id="calNext">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 18l6-6-6-6"/></svg>
+            </button>
+          </div>
+          <div class="cal-weekdays">
+            <span>D</span><span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span>
+          </div>
+          <div class="cal-grid" id="calGrid"></div>
+        </div>
+      </div>
+      <div class="dropdown-wrap">
+        <div class="date-picker" id="dateToggle">
+          <div>
+            <div class="lbl" id="topDate">15 Mai 2024</div>
+            <div class="sub" id="topDay">Mercredi</div>
+          </div>
+          <svg width="12" height="8" viewBox="0 0 12 8" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1 1l5 5 5-5"/></svg>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats">
+    <div class="stat-card">
+      <div class="stat-icon" style="background:var(--purple-bg); color:var(--purple-text);">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+      </div>
+      <div>
+        <h4>Total séances</h4>
+        <div class="num" id="statTotal">24</div>
+        <div class="desc">Séances programmées</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="background:var(--green-bg); color:var(--green-text);">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M2 21v-2a4 4 0 014-4h6a4 4 0 014 4v2"/><path d="M17 3.5a4 4 0 010 7"/></svg>
+      </div>
+      <div>
+        <h4>Séances cette semaine</h4>
+        <div class="num" id="statWeek">6</div>
+        <div class="desc">Du 13/05 au 19/05</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="background:var(--orange-bg); color:var(--orange-text);">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+      </div>
+      <div>
+        <h4>Séances aujourd'hui</h4>
+        <div class="num" id="statToday">2</div>
+        <div class="desc">Mercredi 15 Mai 2024</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="background:var(--blue-bg); color:var(--blue-text);">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
+      </div>
+      <div>
+        <h4>Séances terminées</h4>
+        <div class="num" id="statDone">18</div>
+        <div class="desc">Depuis le début</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="filters">
+    <div class="filter-group period">
+      <div>
+        <label>Période</label>
+        <input type="date" class="date-input" id="filterFrom" value="2024-05-01">
+      </div>
+      <span class="date-sep">→</span>
+      <input type="date" class="date-input" id="filterTo" value="2024-05-31" style="margin-bottom:0;">
+    </div>
+    <div class="filter-group">
+      <label>Groupe</label>
+      <select class="dd" id="filterGroupe">
+        <option value="">Tous les groupes</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label>Type de séance</label>
+      <select class="dd" id="filterType">
+        <option value="">Tous les types</option>
+        <option value="Cours">Cours</option>
+        <option value="Révision">Révision</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label>Statut</label>
+      <select class="dd" id="filterStatut">
+        <option value="">Tous les statuts</option>
+        <option value="À venir">À venir</option>
+        <option value="Terminée">Terminée</option>
+        <option value="Annulée">Annulée</option>
+      </select>
+    </div>
+    <button class="btn-reset" id="btnReset">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6"/><path d="M3.5 15a9 9 0 1 0 2.1-9.5L1 10"/></svg>
+      Réinitialiser
+    </button>
+    <button class="btn-primary" id="btnAdd">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
+      Ajouter une séance
+    </button>
+  </div>
+
+  <!-- Table -->
+  <div class="table-card">
+    <h3>Liste des séances</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>N°</th><th>Groupe</th><th>Type</th><th>Date</th><th>Heure</th>
+            <th>Durée</th><th>Chapitre / Sujet</th><th>Statut</th><th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+    <div class="table-footer">
+      <div class="total-txt">Total : <b id="totalCount">24</b> séances</div>
+      <div class="footer-right">
+        <select class="perpage" id="perPage">
+          <option value="5">5 par page</option>
+          <option value="10" selected>10 par page</option>
+          <option value="20">20 par page</option>
+        </select>
+        <div class="pagination" id="pagination"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add/Edit Modal -->
+<div class="overlay" id="modalOverlay">
+  <div class="modal">
+    <h3 id="modalTitle">Ajouter une séance</h3>
+    <form id="seanceForm">
+      <div class="form-row">
+        <div class="form-field">
+          <label>Groupe</label>
+          <select id="fGroupe" required></select>
+        </div>
+        <div class="form-field">
+          <label>Type de séance</label>
+          <select id="fType" required>
+            <option value="Cours">Cours</option>
+            <option value="Révision">Révision</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-field">
+          <label>Date</label>
+          <input type="date" id="fDate" required>
+        </div>
+        <div class="form-field">
+          <label>Durée</label>
+          <select id="fDuree" required>
+            <option value="1h30m">1h 30m</option>
+            <option value="2h00m">2h 00m</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-field">
+          <label>Heure début</label>
+          <input type="time" id="fHeureDebut" required>
+        </div>
+        <div class="form-field">
+          <label>Heure fin</label>
+          <input type="time" id="fHeureFin" required>
+        </div>
+      </div>
+      <div class="form-row full">
+        <div class="form-field">
+          <label>Chapitre / Sujet</label>
+          <input type="text" id="fSujet" placeholder="Ex: Les structures répétitives" required>
+        </div>
+      </div>
+      <div class="form-row full">
+        <div class="form-field">
+          <label>Statut</label>
+          <select id="fStatut" required>
+            <option value="À venir">À venir</option>
+            <option value="Terminée">Terminée</option>
+            <option value="Annulée">Annulée</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" id="btnCancelForm">Annuler</button>
+        <button type="submit" class="btn-primary" style="margin-left:0;">Enregistrer</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Delete Confirm Modal -->
+<div class="overlay" id="confirmOverlay">
+  <div class="modal confirm-modal">
+    <div class="warn-icon">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+    </div>
+    <h3>Supprimer cette séance ?</h3>
+    <p>Cette action est irréversible. La séance sera définitivement supprimée.</p>
+    <div class="confirm-actions">
+      <button class="btn-cancel" id="btnCancelDelete">Annuler</button>
+      <button class="btn-danger" id="btnConfirmDelete">Supprimer</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span class="dot"></span><span id="toastMsg">Séance ajoutée avec succès</span></div>
+
+<script>
+  // ===== Data =====
+  const groupes = ["Info A","Info B","Info C","Math A","Math B","Tech A","Tech B","Sciences A"];
+  const sujets = {
+    "Info A":["Les structures répétitives","Algorithmique","Les fonctions récursives","POO - Introduction"],
+    "Info B":["Les tableaux","Les pointeurs","Structures de données"],
+    "Info C":["Les fonctions","Gestion de fichiers","Tri et recherche"],
+    "Math A":["Fonctions - Exercices","Dérivées","Suites numériques"],
+    "Math B":["Trigonométrie","Probabilités","Statistiques"],
+    "Tech A":["Réseaux informatiques","Architecture système"],
+    "Tech B":["Base de données","Modélisation UML"],
+    "Sciences A":["Chimie organique","Physique - Mécanique"]
+  };
+
+  let seances = [];
+  function seedData(){
+    const raw = [
+      [1,"Info A","Cours","2024-05-15","Mercredi","14:00","16:00","2h00m","Les structures répétitives","À venir"],
+      [2,"Math A","Révision","2024-05-15","Mercredi","16:30","18:00","1h30m","Fonctions – Exercices","À venir"],
+      [3,"Info B","Cours","2024-05-16","Jeudi","14:00","16:00","2h00m","Les tableaux","À venir"],
+      [4,"Tech A","Cours","2024-05-16","Jeudi","16:30","18:30","2h00m","Réseaux informatiques","À venir"],
+      [5,"Info A","Révision","2024-05-18","Samedi","10:00","12:00","2h00m","Algorithmique","Terminée"],
+      [6,"Sciences A","Cours","2024-05-18","Samedi","14:30","16:30","2h00m","Chimie organique","Terminée"],
+      [7,"Math B","Révision","2024-05-19","Dimanche","10:00","11:30","1h30m","Trigonométrie","Annulée"],
+      [8,"Info C","Cours","2024-05-19","Dimanche","16:00","18:00","2h00m","Les fonctions","Terminée"],
+      [9,"Tech B","Cours","2024-05-20","Lundi","14:00","16:00","2h00m","Base de données","À venir"],
+      [10,"Info B","Révision","2024-05-20","Lundi","16:30","18:00","1h30m","Examen blanc","À venir"],
+      [11,"Math A","Cours","2024-05-21","Mardi","14:00","16:00","2h00m","Dérivées","À venir"],
+      [12,"Info A","Cours","2024-05-21","Mardi","16:30","18:30","2h00m","POO - Introduction","À venir"],
+      [13,"Sciences A","Révision","2024-05-22","Mercredi","10:00","11:30","1h30m","Physique - Mécanique","À venir"],
+      [14,"Tech A","Cours","2024-05-22","Mercredi","14:00","16:00","2h00m","Architecture système","À venir"],
+      [15,"Info C","Révision","2024-05-23","Jeudi","16:30","18:00","1h30m","Tri et recherche","À venir"],
+      [16,"Math B","Cours","2024-05-24","Vendredi","14:00","16:00","2h00m","Probabilités","À venir"],
+      [17,"Info B","Cours","2024-05-24","Vendredi","16:30","18:30","2h00m","Structures de données","À venir"],
+      [18,"Tech B","Révision","2024-05-25","Samedi","10:00","11:30","1h30m","Modélisation UML","Terminée"],
+      [19,"Info A","Cours","2024-05-25","Samedi","14:00","16:00","2h00m","Les fonctions récursives","Terminée"],
+      [20,"Math A","Révision","2024-05-26","Dimanche","10:00","11:30","1h30m","Suites numériques","Terminée"],
+      [21,"Sciences A","Cours","2024-05-27","Lundi","14:00","16:00","2h00m","Chimie organique","Terminée"],
+      [22,"Info C","Cours","2024-05-27","Lundi","16:30","18:30","2h00m","Gestion de fichiers","Terminée"],
+      [23,"Tech A","Révision","2024-05-28","Mardi","10:00","11:30","1h30m","Réseaux informatiques","Terminée"],
+      [24,"Info B","Cours","2024-05-28","Mardi","14:00","16:00","2h00m","Les pointeurs","Terminée"]
+    ];
+    seances = raw.map(r=>({
+      id:r[0], groupe:r[1], type:r[2], date:r[3], jour:r[4], heureDebut:r[5], heureFin:r[6],
+      duree:r[7], sujet:r[8], statut:r[9]
+    }));
+  }
+  seedData();
+
+  // ===== State =====
+  let currentPage = 1;
+  let perPage = 10;
+
+  const jours = ["Dimanche","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"];
+  const moisFr = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
+
+  function fmtDate(iso){
+    const [y,m,d] = iso.split('-').map(Number);
+    return `${String(d).padStart(2,'0')}/${String(m).padStart(2,'0')}/${y}`;
+  }
+  function dayName(iso){
+    const dt = new Date(iso+'T00:00:00');
+    return jours[dt.getDay()];
+  }
+
+  // ===== Populate filter/form dropdowns =====
+  function populateGroupSelects(){
+    const filterSel = document.getElementById('filterGroupe');
+    const formSel = document.getElementById('fGroupe');
+    groupes.forEach(g=>{
+      const o1 = document.createElement('option'); o1.value=g; o1.textContent=g; filterSel.appendChild(o1);
+      const o2 = document.createElement('option'); o2.value=g; o2.textContent=g; formSel.appendChild(o2);
+    });
+  }
+  populateGroupSelects();
+
+  // ===== Stats =====
+  function updateStats(){
+    document.getElementById('statTotal').textContent = seances.length;
+    document.getElementById('statDone').textContent = seances.filter(s=>s.statut==='Terminée').length;
+
+    const today = new Date('2024-05-15T00:00:00');
+    const todayIso = '2024-05-15';
+    document.getElementById('statToday').textContent = seances.filter(s=>s.date===todayIso).length;
+
+    // week of 13/05 - 19/05
+    const weekStart = new Date('2024-05-13T00:00:00');
+    const weekEnd = new Date('2024-05-19T00:00:00');
+    const weekCount = seances.filter(s=>{
+      const d = new Date(s.date+'T00:00:00');
+      return d>=weekStart && d<=weekEnd;
+    }).length;
+    document.getElementById('statWeek').textContent = weekCount;
+  }
+
+  // ===== Filtering =====
+  function getFiltered(){
+    const from = document.getElementById('filterFrom').value;
+    const to = document.getElementById('filterTo').value;
+    const groupe = document.getElementById('filterGroupe').value;
+    const type = document.getElementById('filterType').value;
+    const statut = document.getElementById('filterStatut').value;
+    const search = document.getElementById('searchInput').value.trim().toLowerCase();
+
+    return seances.filter(s=>{
+      if(from && s.date < from) return false;
+      if(to && s.date > to) return false;
+      if(groupe && s.groupe !== groupe) return false;
+      if(type && s.type !== type) return false;
+      if(statut && s.statut !== statut) return false;
+      if(search){
+        const hay = (s.groupe+' '+s.sujet+' '+s.type).toLowerCase();
+        if(!hay.includes(search)) return false;
+      }
+      return true;
+    }).sort((a,b)=> a.date.localeCompare(b.date) || a.heureDebut.localeCompare(b.heureDebut));
+  }
+
+  function durationClass(d){ return d==='2h00m' ? 'dur-2h' : 'dur-1h30'; }
+  function durationLabel(d){ return d==='2h00m' ? '2h 00m' : '1h 30m'; }
+  function statusClass(s){
+    if(s==='À venir') return 'status-avenir';
+    if(s==='Terminée') return 'status-terminee';
+    return 'status-annulee';
+  }
+  function typeClass(t){ return t==='Cours' ? 'chip-cours' : 'chip-revision'; }
+
+  // ===== Render table =====
+  function render(){
+    const filtered = getFiltered();
+    const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
+    if(currentPage > totalPages) currentPage = totalPages;
+    const start = (currentPage-1)*perPage;
+    const pageItems = filtered.slice(start, start+perPage);
+
+    const tbody = document.getElementById('tableBody');
+    tbody.innerHTML = '';
+
+    if(pageItems.length === 0){
+      tbody.innerHTML = `<tr class="empty-row"><td colspan="9">Aucune séance ne correspond à vos critères.</td></tr>`;
+    } else {
+      pageItems.forEach((s, idx)=>{
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${start+idx+1}</td>
+          <td><strong>${s.groupe}</strong></td>
+          <td><span class="chip ${typeClass(s.type)}">${s.type}</span></td>
+          <td class="cell-date"><div class="d1">${fmtDate(s.date)}</div><div class="d2">${dayName(s.date)}</div></td>
+          <td>${s.heureDebut} – ${s.heureFin}</td>
+          <td><span class="duration ${durationClass(s.duree)}">${durationLabel(s.duree)}</span></td>
+          <td>${s.sujet}</td>
+          <td><span class="status ${statusClass(s.statut)}">${s.statut}</span></td>
+          <td>
+            <div class="actions">
+              <button class="act-btn view" data-id="${s.id}" title="Voir">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+              <button class="act-btn edit" data-id="${s.id}" title="Modifier">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </button>
+              <button class="act-btn del" data-id="${s.id}" title="Supprimer">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0l-1 14a2 2 0 01-2 2H7a2 2 0 01-2-2L4 6"/></svg>
+              </button>
+            </div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    document.getElementById('totalCount').textContent = filtered.length;
+    renderPagination(totalPages);
+    updateStats();
+    attachRowActions();
+  }
+
+  function renderPagination(totalPages){
+    const wrap = document.getElementById('pagination');
+    wrap.innerHTML = '';
+
+    const mkBtn = (label, page, opts={}) => {
+      const b = document.createElement('button');
+      b.className = 'page-btn' + (opts.active ? ' active':'');
+      b.innerHTML = label;
+      b.disabled = !!opts.disabled;
+      b.addEventListener('click', ()=>{ currentPage = page; render(); });
+      return b;
+    };
+
+    wrap.appendChild(mkBtn('«', 1, {disabled: currentPage===1}));
+    wrap.appendChild(mkBtn('‹', Math.max(1,currentPage-1), {disabled: currentPage===1}));
+
+    let pages = [];
+    if(totalPages <= 6){
+      for(let i=1;i<=totalPages;i++) pages.push(i);
+    } else {
+      pages = [1,2,3,'...',totalPages];
+      if(currentPage>3 && currentPage<totalPages-1){
+        pages = [1,'...',currentPage,'...',totalPages];
+      } else if(currentPage>=totalPages-1){
+        pages = [1,'...',totalPages-2,totalPages-1,totalPages];
+      }
+    }
+    pages.forEach(p=>{
+      if(p==='...'){
+        const span = document.createElement('span');
+        span.textContent='…'; span.style.padding='0 4px'; span.style.color='var(--text-soft)';
+        wrap.appendChild(span);
+      } else {
+        wrap.appendChild(mkBtn(p, p, {active: p===currentPage}));
+      }
+    });
+
+    wrap.appendChild(mkBtn('›', Math.min(totalPages,currentPage+1), {disabled: currentPage===totalPages}));
+    wrap.appendChild(mkBtn('»', totalPages, {disabled: currentPage===totalPages}));
+  }
+
+  // ===== Row actions =====
+  let deleteTargetId = null;
+  let editTargetId = null;
+
+  function attachRowActions(){
+    document.querySelectorAll('.act-btn.del').forEach(btn=>{
+      btn.onclick = ()=>{
+        deleteTargetId = Number(btn.dataset.id);
+        document.getElementById('confirmOverlay').classList.add('show');
+      };
+    });
+    document.querySelectorAll('.act-btn.edit').forEach(btn=>{
+      btn.onclick = ()=> openForm(Number(btn.dataset.id));
+    });
+    document.querySelectorAll('.act-btn.view').forEach(btn=>{
+      btn.onclick = ()=>{
+        const s = seances.find(x=>x.id===Number(btn.dataset.id));
+        if(s) showToast(`${s.type} · ${s.groupe} · ${s.sujet} — ${fmtDate(s.date)} de ${s.heureDebut} à ${s.heureFin}`);
+      };
+    });
+  }
+
+  // ===== Delete =====
+  document.getElementById('btnCancelDelete').onclick = ()=>{
+    document.getElementById('confirmOverlay').classList.remove('show');
+    deleteTargetId = null;
+  };
+  document.getElementById('btnConfirmDelete').onclick = ()=>{
+    if(deleteTargetId!==null){
+      seances = seances.filter(s=>s.id !== deleteTargetId);
+      showToast('Séance supprimée avec succès');
+    }
+    document.getElementById('confirmOverlay').classList.remove('show');
+    deleteTargetId = null;
+    render();
+  };
+
+  // ===== Add / Edit form =====
+  function openForm(id=null){
+    editTargetId = id;
+    const form = document.getElementById('seanceForm');
+    form.reset();
+    if(id !== null){
+      const s = seances.find(x=>x.id===id);
+      document.getElementById('modalTitle').textContent = 'Modifier la séance';
+      document.getElementById('fGroupe').value = s.groupe;
+      document.getElementById('fType').value = s.type;
+      document.getElementById('fDate').value = s.date;
+      document.getElementById('fDuree').value = s.duree;
+      document.getElementById('fHeureDebut').value = s.heureDebut;
+      document.getElementById('fHeureFin').value = s.heureFin;
+      document.getElementById('fSujet').value = s.sujet;
+      document.getElementById('fStatut').value = s.statut;
+    } else {
+      document.getElementById('modalTitle').textContent = 'Ajouter une séance';
+      document.getElementById('fDate').value = '2024-05-15';
+      document.getElementById('fHeureDebut').value = '14:00';
+      document.getElementById('fHeureFin').value = '16:00';
+    }
+    document.getElementById('modalOverlay').classList.add('show');
+  }
+
+  document.getElementById('btnAdd').onclick = ()=> openForm(null);
+  document.getElementById('btnCancelForm').onclick = ()=>{
+    document.getElementById('modalOverlay').classList.remove('show');
+  };
+
+  document.getElementById('seanceForm').addEventListener('submit', function(e){
+    e.preventDefault();
+    const data = {
+      groupe: document.getElementById('fGroupe').value,
+      type: document.getElementById('fType').value,
+      date: document.getElementById('fDate').value,
+      duree: document.getElementById('fDuree').value,
+      heureDebut: document.getElementById('fHeureDebut').value,
+      heureFin: document.getElementById('fHeureFin').value,
+      sujet: document.getElementById('fSujet').value,
+      statut: document.getElementById('fStatut').value
+    };
+    if(editTargetId !== null){
+      const s = seances.find(x=>x.id===editTargetId);
+      Object.assign(s, data);
+      showToast('Séance modifiée avec succès');
+    } else {
+      const newId = seances.length ? Math.max(...seances.map(s=>s.id))+1 : 1;
+      seances.push({ id:newId, ...data });
+      showToast('Séance ajoutée avec succès');
+    }
+    document.getElementById('modalOverlay').classList.remove('show');
+    render();
+  });
+
+  // ===== Toast =====
+  let toastTimer;
+  function showToast(msg){
+    const t = document.getElementById('toast');
+    document.getElementById('toastMsg').textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(()=> t.classList.remove('show'), 3200);
+  }
+
+  // ===== Filter events =====
+  ['filterFrom','filterTo','filterGroupe','filterType','filterStatut','searchInput'].forEach(id=>{
+    document.getElementById(id).addEventListener('input', ()=>{ currentPage=1; render(); });
+    document.getElementById(id).addEventListener('change', ()=>{ currentPage=1; render(); });
+  });
+
+  document.getElementById('btnReset').onclick = ()=>{
+    document.getElementById('filterFrom').value = '2024-05-01';
+    document.getElementById('filterTo').value = '2024-05-31';
+    document.getElementById('filterGroupe').value = '';
+    document.getElementById('filterType').value = '';
+    document.getElementById('filterStatut').value = '';
+    document.getElementById('searchInput').value = '';
+    currentPage = 1;
+    render();
+  };
+
+  document.getElementById('perPage').addEventListener('change', function(){
+    perPage = Number(this.value);
+    currentPage = 1;
+    render();
+  });
+
+  // Close overlays on background click
+  document.getElementById('modalOverlay').addEventListener('click', function(e){
+    if(e.target === this) this.classList.remove('show');
+  });
+  document.getElementById('confirmOverlay').addEventListener('click', function(e){
+    if(e.target === this) this.classList.remove('show');
+  });
+
+  // ===== Notifications dropdown =====
+  let notifications = [
+    { id:1, type:'annulee', title:'Séance annulée', text:'Trigonométrie · Math B a été annulée.', time:'Il y a 20 min', unread:true },
+    { id:2, type:'ajout', title:'Nouvelle séance ajoutée', text:'Base de données · Tech B, le 20/05 à 14:00.', time:'Il y a 1h', unread:true },
+    { id:3, type:'rappel', title:'Rappel', text:'Les structures répétitives · Info A commence dans 1h.', time:'Il y a 2h', unread:true },
+  ];
+
+  function notifIcon(type){
+    if(type==='annulee') return {bg:'var(--red-bg)', color:'var(--red-text)', svg:'<path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/>'};
+    if(type==='ajout') return {bg:'var(--green-bg)', color:'var(--green-text)', svg:'<path d="M12 5v14M5 12h14"/>'};
+    return {bg:'var(--orange-bg)', color:'var(--orange-text)', svg:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/>'};
+  }
+
+  function renderNotifications(){
+    const list = document.getElementById('notifList');
+
+    if(notifications.length === 0){
+      list.innerHTML = `<div class="notif-empty">Aucune notification pour le moment.</div>`;
+      return;
+    }
+    list.innerHTML = notifications.map(n=>{
+      const ic = notifIcon(n.type);
+      return `
+        <div class="notif-item ${n.unread ? 'unread':''}" data-id="${n.id}">
+          <div class="notif-dot-icon" style="background:${ic.bg}; color:${ic.color};">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${ic.svg}</svg>
+          </div>
+          <div class="n-text">
+            <div class="n-title">${n.title}</div>
+            <div class="n-sub">${n.text}</div>
+            <div class="n-time">${n.time}</div>
+          </div>
+        </div>`;
+    }).join('');
+
+    list.querySelectorAll('.notif-item').forEach(item=>{
+      item.addEventListener('click', ()=>{
+        const n = notifications.find(x=>x.id === Number(item.dataset.id));
+        if(n){ n.unread = false; renderNotifications(); }
+      });
+    });
+  }
+  renderNotifications();
+
+  document.getElementById('notifClearAll').addEventListener('click', ()=>{
+    notifications.forEach(n=> n.unread = false);
+    renderNotifications();
+  });
+
+  const notifBtn = document.getElementById('notifBtn');
+  const notifPanel = document.getElementById('notifPanel');
+  const calBtn = document.getElementById('calBtn');
+  const calPanel = document.getElementById('calPanel');
+  const dateToggle = document.getElementById('dateToggle');
+
+  function closeAllDropdowns(except){
+    if(except !== notifPanel) notifPanel.classList.remove('show');
+    if(except !== calPanel) calPanel.classList.remove('show');
+  }
+
+  notifBtn.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    const willShow = !notifPanel.classList.contains('show');
+    closeAllDropdowns();
+    if(willShow) notifPanel.classList.add('show');
+  });
+
+  function openCalendar(){
+    closeAllDropdowns(calPanel);
+    calPanel.classList.add('show');
+    renderCalendar();
+  }
+  calBtn.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    if(calPanel.classList.contains('show')) calPanel.classList.remove('show');
+    else openCalendar();
+  });
+  dateToggle.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    if(calPanel.classList.contains('show')) calPanel.classList.remove('show');
+    else openCalendar();
+  });
+
+  document.addEventListener('click', (e)=>{
+    if(!notifBtn.closest('.dropdown-wrap').contains(e.target)) notifPanel.classList.remove('show');
+    if(!calBtn.closest('.dropdown-wrap').contains(e.target) && !dateToggle.contains(e.target)) calPanel.classList.remove('show');
+  });
+
+  // ===== Calendar mini widget =====
+  let calYear = 2024, calMonth = 4; // Mai = index 4
+  let selectedDate = '2024-05-15';
+
+  function seancesOnDate(iso){
+    return seances.some(s => s.date === iso);
+  }
+
+  function renderCalendar(){
+    document.getElementById('calMonthLabel').textContent = `${moisFr[calMonth]} ${calYear}`;
+    const grid = document.getElementById('calGrid');
+    grid.innerHTML = '';
+
+    const firstDay = new Date(calYear, calMonth, 1).getDay();
+    const daysInMonth = new Date(calYear, calMonth+1, 0).getDate();
+    const daysInPrevMonth = new Date(calYear, calMonth, 0).getDate();
+    const todayIso = '2024-05-15';
+
+    const cells = [];
+    for(let i=firstDay-1; i>=0; i--){
+      cells.push({ day: daysInPrevMonth-i, muted:true });
+    }
+    for(let d=1; d<=daysInMonth; d++){
+      cells.push({ day:d, muted:false });
+    }
+    while(cells.length % 7 !== 0){
+      cells.push({ day: cells.length - (firstDay+daysInMonth) + 1, muted:true });
+    }
+
+    cells.forEach(c=>{
+      const iso = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(c.day).padStart(2,'0')}`;
+      const div = document.createElement('div');
+      let cls = 'cal-day';
+      if(c.muted) cls += ' muted';
+      if(!c.muted && iso === todayIso) cls += ' today';
+      if(!c.muted && iso === selectedDate) cls += ' selected';
+      if(!c.muted && seancesOnDate(iso)) cls += ' has-seance';
+      div.className = cls;
+      div.textContent = c.day;
+      if(!c.muted){
+        div.addEventListener('click', ()=>{
+          selectedDate = iso;
+          const dt = new Date(iso+'T00:00:00');
+          document.getElementById('topDate').textContent = `${dt.getDate()} ${moisFr[dt.getMonth()]} ${dt.getFullYear()}`;
+          document.getElementById('topDay').textContent = jours[dt.getDay()];
+          document.getElementById('filterFrom').value = iso;
+          document.getElementById('filterTo').value = iso;
+          currentPage = 1;
+          render();
+          calPanel.classList.remove('show');
+          showToast(`Date sélectionnée : ${fmtDate(iso)}`);
+        });
+      }
+      grid.appendChild(div);
+    });
+  }
+
+  document.getElementById('calPrev').addEventListener('click', (e)=>{
+    e.stopPropagation();
+    calMonth--; if(calMonth < 0){ calMonth = 11; calYear--; }
+    renderCalendar();
+  });
+  document.getElementById('calNext').addEventListener('click', (e)=>{
+    e.stopPropagation();
+    calMonth++; if(calMonth > 11){ calMonth = 0; calYear++; }
+    renderCalendar();
+  });
+
+  // ===== Init =====
+  render();
+</script>
+</body>
+</html>
