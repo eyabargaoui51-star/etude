@@ -1,3 +1,187 @@
+<?php
+/* =========================================================================
+   PRESENCE.PHP — Gestion des présences (version dynamique)
+   Connecté à la base "gestion_etude" via mysqli
+   ========================================================================= */
+require_once("../config/database.php");
+
+/* -------------------------------------------------------------------------
+   1) ACTION AJAX : ENREGISTREMENT DE LA PRESENCE (appelée en POST par le JS)
+   ------------------------------------------------------------------------- */
+if (isset($_GET['action']) && $_GET['action'] === 'save_presence' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+
+    header('Content-Type: application/json; charset=utf-8');
+
+    $payload   = json_decode(file_get_contents('php://input'), true);
+    $id_seance = isset($payload['id_seance']) ? (int)$payload['id_seance'] : 0;
+    $liste     = isset($payload['presences']) && is_array($payload['presences']) ? $payload['presences'] : [];
+
+    if ($id_seance <= 0 || empty($liste)) {
+        echo json_encode(['success' => false, 'message' => "Séance invalide."]);
+        exit;
+    }
+
+    foreach ($liste as $p) {
+        $id_eleve = (int)($p['id_eleve'] ?? 0);
+        if ($id_eleve <= 0) continue;
+        $statut = (!empty($p['present'])) ? 'Présent' : 'Absent';
+
+        // On vérifie si une présence existe déjà pour cette séance / cet élève
+        $check = mysqli_prepare($conn, "SELECT id_presence FROM presence WHERE id_seance = ? AND id_eleve = ?");
+        mysqli_stmt_bind_param($check, "ii", $id_seance, $id_eleve);
+        mysqli_stmt_execute($check);
+        $res = mysqli_stmt_get_result($check);
+
+        if ($row = mysqli_fetch_assoc($res)) {
+            $upd = mysqli_prepare($conn, "UPDATE presence SET statut = ? WHERE id_presence = ?");
+            mysqli_stmt_bind_param($upd, "si", $statut, $row['id_presence']);
+            mysqli_stmt_execute($upd);
+            mysqli_stmt_close($upd);
+        } else {
+            $ins = mysqli_prepare($conn, "INSERT INTO presence (id_seance, id_eleve, statut) VALUES (?, ?, ?)");
+            mysqli_stmt_bind_param($ins, "iis", $id_seance, $id_eleve, $statut);
+            mysqli_stmt_execute($ins);
+            mysqli_stmt_close($ins);
+        }
+        mysqli_stmt_close($check);
+    }
+
+    echo json_encode(['success' => true]);
+    exit;
+}
+
+/* -------------------------------------------------------------------------
+   2) PARAMETRES DE LA PAGE (filière / groupe / date sélectionnés)
+   ------------------------------------------------------------------------- */
+
+// Date sélectionnée (par défaut aujourd'hui)
+$selected_date = $_GET['date'] ?? date('Y-m-d');
+$d = DateTime::createFromFormat('Y-m-d', $selected_date);
+if (!$d || $d->format('Y-m-d') !== $selected_date) {
+    $selected_date = date('Y-m-d');
+}
+
+/* -------------------------------------------------------------------------
+   3) CHARGEMENT DES FILIERES ET GROUPES
+   ------------------------------------------------------------------------- */
+$filieresList = [];               // ["Bac Informatique", "Bac Math", ...]
+$groupesParFiliere = [];          // ["Bac Informatique" => ["Info A","Info B"], ...]
+$groupeIdParNom = [];             // ["Info A" => 3, ...]
+$filiereParGroupe = [];           // ["Info A" => "Bac Informatique", ...]
+
+$sql = "SELECT f.nom_filiere, g.id_groupe, g.nom_groupe
+        FROM filiere f
+        LEFT JOIN groupe g ON g.id_filiere = f.id_filiere
+        ORDER BY f.id_filiere ASC, g.nom_groupe ASC";
+$result = mysqli_query($conn, $sql);
+while ($row = mysqli_fetch_assoc($result)) {
+    $nomFiliere = $row['nom_filiere'];
+    if (!in_array($nomFiliere, $filieresList)) {
+        $filieresList[] = $nomFiliere;
+        $groupesParFiliere[$nomFiliere] = [];
+    }
+    if ($row['id_groupe'] !== null) {
+        $groupesParFiliere[$nomFiliere][] = $row['nom_groupe'];
+        $groupeIdParNom[$row['nom_groupe']] = (int)$row['id_groupe'];
+        $filiereParGroupe[$row['nom_groupe']] = $nomFiliere;
+    }
+}
+
+// Filière / groupe sélectionnés par défaut = les premiers de la liste
+$filiere_defaut = $_GET['filiere'] ?? ($filieresList[0] ?? '');
+if (!in_array($filiere_defaut, $filieresList)) {
+    $filiere_defaut = $filieresList[0] ?? '';
+}
+$groupesDeLaFiliere = $groupesParFiliere[$filiere_defaut] ?? [];
+$groupe_defaut = $_GET['groupe'] ?? ($groupesDeLaFiliere[0] ?? '');
+if (!in_array($groupe_defaut, $groupesDeLaFiliere)) {
+    $groupe_defaut = $groupesDeLaFiliere[0] ?? '';
+}
+
+/* -------------------------------------------------------------------------
+   4) SEANCES DU JOUR SELECTIONNE, PAR GROUPE
+   ------------------------------------------------------------------------- */
+$seancesParGroupe = [];   // ["Info A" => [ ["id"=>5,"label"=>"17:00 - 18:30"], ... ] ]
+$idsSeancesDuJour  = [];
+
+$stmt = mysqli_prepare($conn, "SELECT id_seance, id_groupe, heure_debut, heure_fin FROM seance WHERE date_seance = ? ORDER BY heure_debut ASC");
+mysqli_stmt_bind_param($stmt, "s", $selected_date);
+mysqli_stmt_execute($stmt);
+$res = mysqli_stmt_get_result($stmt);
+while ($row = mysqli_fetch_assoc($res)) {
+    // Retrouver le nom du groupe correspondant à l'id_groupe
+    $nomGroupe = array_search((int)$row['id_groupe'], $groupeIdParNom);
+    if ($nomGroupe === false) continue;
+
+    $label = substr($row['heure_debut'], 0, 5) . " - " . substr($row['heure_fin'], 0, 5);
+    if (!isset($seancesParGroupe[$nomGroupe])) $seancesParGroupe[$nomGroupe] = [];
+    $seancesParGroupe[$nomGroupe][] = ['id' => (int)$row['id_seance'], 'label' => $label];
+    $idsSeancesDuJour[] = (int)$row['id_seance'];
+}
+mysqli_stmt_close($stmt);
+
+/* -------------------------------------------------------------------------
+   5) ELEVES + STATUT DE PRESENCE, PAR GROUPE ET PAR SEANCE
+   ------------------------------------------------------------------------- */
+
+// a) Elèves de chaque groupe
+$elevesParGroupe = [];  // ["Info A" => [ ["id"=>1,"name"=>"Ahmed Ben Ali"], ... ] ]
+$sql = "SELECT e.id_eleve, e.nom, e.prenom, g.nom_groupe
+        FROM eleve e
+        INNER JOIN groupe g ON g.id_groupe = e.id_groupe
+        ORDER BY e.nom ASC, e.prenom ASC";
+$result = mysqli_query($conn, $sql);
+while ($row = mysqli_fetch_assoc($result)) {
+    $nomGroupe = $row['nom_groupe'];
+    if (!isset($elevesParGroupe[$nomGroupe])) $elevesParGroupe[$nomGroupe] = [];
+    $elevesParGroupe[$nomGroupe][] = [
+        'id'   => (int)$row['id_eleve'],
+        'name' => $row['nom'] . " " . $row['prenom'],
+    ];
+}
+
+// b) Statuts de présence déjà enregistrés pour les séances du jour sélectionné
+$presenceExistante = []; // [id_seance][id_eleve] = 'Présent' | 'Absent'
+if (!empty($idsSeancesDuJour)) {
+    $idsStr = implode(',', array_map('intval', $idsSeancesDuJour));
+    $sql = "SELECT id_seance, id_eleve, statut FROM presence WHERE id_seance IN ($idsStr)";
+    $result = mysqli_query($conn, $sql);
+    while ($row = mysqli_fetch_assoc($result)) {
+        $presenceExistante[(int)$row['id_seance']][(int)$row['id_eleve']] = $row['statut'];
+    }
+}
+
+// c) Construction finale : studentsData[nomGroupe][id_seance] = [ {id,name,present}, ... ]
+$studentsData = [];
+foreach ($groupeIdParNom as $nomGroupe => $idGroupe) {
+    $studentsData[$nomGroupe] = [];
+    if (empty($seancesParGroupe[$nomGroupe])) continue;
+
+    foreach ($seancesParGroupe[$nomGroupe] as $seance) {
+        $idSeance = $seance['id'];
+        $eleves = $elevesParGroupe[$nomGroupe] ?? [];
+        $liste = [];
+        foreach ($eleves as $el) {
+            $statutActuel = $presenceExistante[$idSeance][$el['id']] ?? 'Présent'; // par défaut : présent
+            $liste[] = [
+                'id'      => $el['id'],
+                'name'    => $el['name'],
+                'present' => ($statutActuel === 'Présent'),
+            ];
+        }
+        $studentsData[$nomGroupe][(string)$idSeance] = $liste;
+    }
+}
+
+// Nom & jour affichés dans le sélecteur de date (en français)
+$moisNoms = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
+$joursComplets = ["Dimanche","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"];
+$dateObj = new DateTime($selected_date);
+$dateAffichee = $dateObj->format('d') . " " . $moisNoms[(int)$dateObj->format('n') - 1] . " " . $dateObj->format('Y');
+$jourAffiche = $joursComplets[(int)$dateObj->format('w')];
+$dateSlashes = $dateObj->format('d/m/Y');
+
+?>
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -123,6 +307,7 @@
     transition:background .15s ease;
   }
   .btn-save:hover{background:#4a3ce0;}
+  .btn-save:disabled{background:#c9c6e6;cursor:not-allowed;}
 
   /* STAT CARDS */
   .stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px;}
@@ -202,10 +387,10 @@
   <!-- HEADER -->
   <div class="header">
     <div class="header-left">
-      <a href="dashboard.html" class="menu-icon" title="Retour au Dashboard" style="text-decoration:none;"><span></span><span></span><span></span></a>
+      
       <div>
         <h1>Présence</h1>
-        <div style="font-size:13px;color:var(--text-gray);margin-top:2px;"><a href="dashboard.html" style="color:var(--text-gray);text-decoration:none;">Dashboard</a> &nbsp;›&nbsp; <span style="color:var(--text-dark);font-weight:600;">Présence</span></div>
+        <div style="font-size:13px;color:var(--text-gray);margin-top:2px;"><a href="dashboard.php" style="color:var(--text-gray);text-decoration:none;">Dashboard</a> &nbsp;›&nbsp; <span style="color:var(--text-dark);font-weight:600;">Présence</span></div>
       </div>
     </div>
     <div class="header-right">
@@ -214,7 +399,7 @@
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       </div>
       <div class="date-pill">
-        <div class="date-text" id="topDate">15 Mai 2024<small>Mercredi</small></div>
+        <div class="date-text" id="topDate"><?php echo $dateAffichee; ?><small><?php echo $jourAffiche; ?></small></div>
       </div>
       <div class="avatar">A</div>
     </div>
@@ -229,7 +414,7 @@
           <div class="ic">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
           </div>
-          <div class="dd-label" id="filiereLabel">Bac Informatique</div>
+          <div class="dd-label" id="filiereLabel"><?php echo htmlspecialchars($filiere_defaut); ?></div>
           <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
         </div>
         <div class="dd-panel" id="filierePanel"></div>
@@ -243,7 +428,7 @@
           <div class="ic">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
           </div>
-          <div class="dd-label" id="groupeLabel">Info A</div>
+          <div class="dd-label" id="groupeLabel"><?php echo htmlspecialchars($groupe_defaut); ?></div>
           <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
         </div>
         <div class="dd-panel" id="groupePanel"></div>
@@ -253,7 +438,7 @@
     <div class="filter-group">
       <label>Date</label>
       <div class="date-wrap" id="dateWrap">
-        <div class="date-display" id="dateDisplay">15/05/2024</div>
+        <div class="date-display" id="dateDisplay"><?php echo $dateSlashes; ?></div>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
         <div class="cal-panel" id="calPanel">
           <div class="cal-header">
@@ -279,7 +464,7 @@
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
       </div>
       <div class="stat-info">
-        <div class="stat-value"><h2 id="totalCount">28</h2></div>
+        <div class="stat-value"><h2 id="totalCount">0</h2></div>
         <p>Total élèves</p>
       </div>
     </div>
@@ -289,7 +474,7 @@
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
       </div>
       <div class="stat-info">
-        <div class="stat-value"><h2 id="presentCount">22</h2><span class="pct green-txt" id="presentPct">78.6%</span></div>
+        <div class="stat-value"><h2 id="presentCount">0</h2><span class="pct green-txt" id="presentPct">0%</span></div>
         <p>Présents</p>
       </div>
     </div>
@@ -299,7 +484,7 @@
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
       </div>
       <div class="stat-info">
-        <div class="stat-value"><h2 id="absentCount">6</h2><span class="pct red-txt" id="absentPct">21.4%</span></div>
+        <div class="stat-value"><h2 id="absentCount">0</h2><span class="pct red-txt" id="absentPct">0%</span></div>
         <p>Absents</p>
       </div>
     </div>
@@ -311,7 +496,7 @@
       <div class="stat-info">
         <div class="custom-dd seance" id="seanceDD">
           <div class="dd-trigger seance-trigger">
-            <div class="dd-label seance-label" id="seanceLabel">17:00 - 18:30</div>
+            <div class="dd-label seance-label" id="seanceLabel">--:-- - --:--</div>
             <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
           </div>
           <div class="dd-panel" id="seancePanel"></div>
@@ -339,112 +524,51 @@
 </div>
 
 <script>
-/* ---------- DONNEES ---------- */
-const groupesParFiliere = {
-  "Bac Informatique": ["Info A", "Info B", "Info C"],
-  "Bac Technique": ["Tech A", "Tech B"],
-  "Bac Sciences Exp": ["Sc Exp A", "Sc Exp B", "Sc Exp C"],
-  "Bac Mathématiques": ["Math A", "Math B"]
-};
+/* ---------- DONNEES INJECTEES DEPUIS PHP / MYSQL ---------- */
+const groupesParFiliere = <?php echo json_encode($groupesParFiliere, JSON_UNESCAPED_UNICODE); ?>;
 const filieresList = Object.keys(groupesParFiliere);
 
-/* Elèves par Filière > Groupe. Chaque groupe a sa propre liste. */
-const studentsData = {
-  "Bac Informatique": {
-    "Info A": [
-      {name:"Ahmed Ben Ali", present:true},
-      {name:"Youssef Mahjoub", present:true},
-      {name:"Karim Jaziri", present:false},
-      {name:"Ilyes Chemli", present:true},
-      {name:"Mohamed Salah", present:true},
-      {name:"Rania Nasri", present:false},
-      {name:"Hedi Belhaj", present:true},
-      {name:"Nour Bouaicha", present:true},
-      {name:"Sara Bouzid", present:false},
-      {name:"Ines Trabelsi", present:true},
-    ],
-    "Info B": [
-      {name:"Aymen Ferjani", present:true},
-      {name:"Wassim Toumi", present:true},
-      {name:"Emna Gharbi", present:true},
-      {name:"Yassine Kaddour", present:false},
-      {name:"Salma Riahi", present:true},
-      {name:"Bilel Mzoughi", present:false},
-    ],
-    "Info C": [
-      {name:"Nada Chaabane", present:true},
-      {name:"Firas Baccouche", present:true},
-      {name:"Amira Sassi", present:false},
-      {name:"Oussama Jendoubi", present:true},
-    ]
-  },
-  "Bac Technique": {
-    "Tech A": [
-      {name:"Rayen Hammami", present:true},
-      {name:"Malek Souissi", present:true},
-      {name:"Chaima Bouazizi", present:false},
-      {name:"Anis Ghanmi", present:true},
-      {name:"Dorra Larbi", present:true},
-    ],
-    "Tech B": [
-      {name:"Seif Ayadi", present:false},
-      {name:"Mariem Slama", present:true},
-      {name:"Houssem Meddeb", present:true},
-    ]
-  },
-  "Bac Sciences Exp": {
-    "Sc Exp A": [
-      {name:"Aziz Trabelsi", present:true},
-      {name:"Nour El Houda Amri", present:true},
-      {name:"Skander Nouri", present:false},
-      {name:"Rim Boukadida", present:true},
-    ],
-    "Sc Exp B": [
-      {name:"Mehdi Zouari", present:true},
-      {name:"Ines Cherif", present:false},
-      {name:"Tarek Loussaief", present:true},
-    ],
-    "Sc Exp C": [
-      {name:"Sirine Hajji", present:true},
-      {name:"Bassem Guesmi", present:true},
-    ]
-  },
-  "Bac Mathématiques": {
-    "Math A": [
-      {name:"Iheb Marzouki", present:true},
-      {name:"Yosra Ben Salem", present:false},
-      {name:"Adem Fakhfakh", present:true},
-      {name:"Lina Werghi", present:true},
-    ],
-    "Math B": [
-      {name:"Khalil Abidi", present:true},
-      {name:"Hana Sfaxi", present:false},
-      {name:"Zied Mkaouar", present:true},
-    ]
-  }
-};
+// seancesParGroupe["Info A"] = [ {id:5, label:"17:00 - 18:30"}, ... ] pour la date sélectionnée
+const seancesParGroupe = <?php echo json_encode($seancesParGroupe, JSON_UNESCAPED_UNICODE); ?>;
 
-// Liste actuellement affichée (référence à l'un des tableaux ci-dessus)
-let students = studentsData["Bac Informatique"]["Info A"];
+// studentsData["Info A"]["5"] = [ {id, name, present}, ... ]
+const studentsData = <?php echo json_encode($studentsData, JSON_UNESCAPED_UNICODE); ?>;
+
+const initialFiliere = <?php echo json_encode($filiere_defaut, JSON_UNESCAPED_UNICODE); ?>;
+const initialGroupe  = <?php echo json_encode($groupe_defaut, JSON_UNESCAPED_UNICODE); ?>;
+const selectedDateStr = <?php echo json_encode($selected_date); ?>; // YYYY-MM-DD
+
+// Liste actuellement affichée + séance actuellement sélectionnée
+let students = [];
+let currentIdSeance = null;
 
 /* ---------- DROPDOWN GENERIQUE ---------- */
-function setupDropdown(ddId, panelId, labelId, options, onSelect, initial){
+function setupDropdown(ddId, panelId, labelId, options, onSelect, initial, getLabel){
   const dd = document.getElementById(ddId);
   const trigger = dd.querySelector('.dd-trigger');
   const panel = document.getElementById(panelId);
   const label = document.getElementById(labelId);
   let current = initial;
+  getLabel = getLabel || (o => o);
 
   function renderOptions(){
     panel.innerHTML = "";
+    if(options.length === 0){
+      const empty = document.createElement('div');
+      empty.className = 'dd-option';
+      empty.style.color = 'var(--text-gray)';
+      empty.textContent = 'Aucune option disponible';
+      panel.appendChild(empty);
+      return;
+    }
     options.forEach(opt => {
       const div = document.createElement('div');
       div.className = 'dd-option' + (opt === current ? ' selected' : '');
-      div.textContent = opt;
+      div.textContent = getLabel(opt);
       div.addEventListener('click', (e) => {
         e.stopPropagation();
         current = opt;
-        label.textContent = opt;
+        label.textContent = getLabel(opt);
         closeAllDropdowns();
         renderOptions();
         onSelect(opt);
@@ -466,7 +590,7 @@ function setupDropdown(ddId, panelId, labelId, options, onSelect, initial){
     setOptions(newOptions, newCurrent){
       options = newOptions;
       current = newCurrent;
-      label.textContent = newCurrent || '';
+      label.textContent = newCurrent !== null && newCurrent !== undefined ? getLabel(newCurrent) : '';
       renderOptions();
     },
     getValue(){ return current; }
@@ -477,32 +601,74 @@ function closeAllDropdowns(){
   document.querySelectorAll('.custom-dd.open').forEach(d => d.classList.remove('open'));
 }
 
-/* ---------- INITIALISATION DROPDOWNS ---------- */
-let groupeDropdown;
+/* ---------- NAVIGATION (changement de filière / groupe / date) ---------- */
+function goTo(filiere, groupe, date){
+  const params = new URLSearchParams();
+  params.set('filiere', filiere);
+  params.set('groupe', groupe);
+  params.set('date', date);
+  window.location.href = 'presence.php?' + params.toString();
+}
 
-function switchStudentList(filiere, groupe){
-  students = (studentsData[filiere] && studentsData[filiere][groupe]) || [];
+/* ---------- SEANCE + TABLEAU DES ELEVES ---------- */
+let seanceDropdown;
+
+function loadSeancesForGroupe(nomGroupe){
+  const seances = seancesParGroupe[nomGroupe] || [];
+  const saveBtn = document.getElementById('saveBtn');
+
+  if(seances.length === 0){
+    currentIdSeance = null;
+    students = [];
+    seanceDropdown.setOptions([], null);
+    document.getElementById('seanceLabel').textContent = 'Aucune séance';
+    saveBtn.disabled = true;
+    renderTable();
+    updateStats();
+    return;
+  }
+
+  saveBtn.disabled = false;
+  seanceDropdown.setOptions(seances, seances[0]);
+  switchStudentList(nomGroupe, seances[0].id);
+}
+
+function switchStudentList(nomGroupe, idSeance){
+  currentIdSeance = idSeance;
+  students = (studentsData[nomGroupe] && studentsData[nomGroupe][String(idSeance)]) || [];
   document.getElementById('searchInput').value = "";
   renderTable();
   updateStats();
 }
 
+/* ---------- INITIALISATION DROPDOWNS ---------- */
+let groupeDropdown;
+
 const filiereDropdown = setupDropdown('filiereDD','filierePanel','filiereLabel', filieresList, (selected) => {
   const groupes = groupesParFiliere[selected] || [];
-  groupeDropdown.setOptions(groupes, groupes[0]);
-  switchStudentList(selected, groupes[0]);
-}, "Bac Informatique");
+  groupeDropdown.setOptions(groupes, groupes[0] || null);
+  if(groupes[0]){
+    loadSeancesForGroupe(groupes[0]);
+  } else {
+    loadSeancesForGroupe(null);
+  }
+}, initialFiliere);
 
-groupeDropdown = setupDropdown('groupeDD','groupePanel','groupeLabel', groupesParFiliere["Bac Informatique"], (selectedGroupe) => {
-  switchStudentList(filiereDropdown.getValue(), selectedGroupe);
-}, "Info A");
+groupeDropdown = setupDropdown('groupeDD','groupePanel','groupeLabel', groupesParFiliere[initialFiliere] || [], (selectedGroupe) => {
+  loadSeancesForGroupe(selectedGroupe);
+}, initialGroupe);
+
+seanceDropdown = setupDropdown('seanceDD','seancePanel','seanceLabel', seancesParGroupe[initialGroupe] || [], (selectedSeance) => {
+  switchStudentList(groupeDropdown.getValue(), selectedSeance.id);
+}, (seancesParGroupe[initialGroupe] || [])[0] || null, (s) => s ? s.label : 'Aucune séance');
 
 /* ---------- CALENDRIER CUSTOM ---------- */
 const jours = ["Dim","Lun","Mar","Mer","Jeu","Ven","Sam"];
 const joursComplets = ["Dimanche","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"];
 const moisNoms = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
 
-let selectedDate = new Date(2024, 4, 15); // 15 Mai 2024
+const [selY, selM, selD] = selectedDateStr.split('-').map(Number);
+let selectedDate = new Date(selY, selM - 1, selD);
 let viewMonth = selectedDate.getMonth();
 let viewYear = selectedDate.getFullYear();
 
@@ -514,11 +680,6 @@ const dateDisplay = document.getElementById('dateDisplay');
 const topDate = document.getElementById('topDate');
 
 function pad(n){ return n.toString().padStart(2,'0'); }
-
-function updateDateDisplay(){
-  dateDisplay.textContent = `${pad(selectedDate.getDate())}/${pad(selectedDate.getMonth()+1)}/${selectedDate.getFullYear()}`;
-  topDate.innerHTML = `${selectedDate.getDate()} ${moisNoms[selectedDate.getMonth()]} ${selectedDate.getFullYear()}<small>${joursComplets[selectedDate.getDay()]}</small>`;
-}
 
 function renderCalendar(){
   calTitle.textContent = `${moisNoms[viewMonth]} ${viewYear}`;
@@ -551,10 +712,10 @@ function renderCalendar(){
     if(isToday) cell.classList.add('today');
     cell.addEventListener('click', (e) => {
       e.stopPropagation();
-      selectedDate = new Date(viewYear, viewMonth, d);
-      updateDateDisplay();
-      renderCalendar();
-      closeCalendar();
+      const newDate = new Date(viewYear, viewMonth, d);
+      const iso = `${newDate.getFullYear()}-${pad(newDate.getMonth()+1)}-${pad(newDate.getDate())}`;
+      // Un changement de date recharge la page avec les séances/présences du nouveau jour
+      goTo(filiereDropdown.getValue(), groupeDropdown.getValue(), iso);
     });
     calGrid.appendChild(cell);
   }
@@ -597,28 +758,30 @@ document.addEventListener('click', () => {
   closeCalendar();
 });
 
-updateDateDisplay();
-
-/* ---------- SEANCE (choix parmi une liste) ---------- */
-const seancesList = [
-  "08:00 - 09:30",
-  "09:30 - 11:00",
-  "11:00 - 12:30",
-  "13:30 - 15:00",
-  "15:00 - 16:30",
-  "17:00 - 18:30"
-];
-
-const seanceDropdown = setupDropdown('seanceDD','seancePanel','seanceLabel', seancesList, (selected) => {
-  // La séance choisie détermine la présence à enregistrer
-}, "17:00 - 18:30");
-
 /* ---------- TABLEAU ELEVES ---------- */
 const tbody = document.getElementById('studentsBody');
 
 function renderTable(filter=""){
   tbody.innerHTML = "";
+
+  if(students.length === 0){
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td colspan="3" style="text-align:center;color:var(--text-gray);padding:24px;">
+      Aucune séance programmée pour ce groupe à cette date. Créez une séance dans la page "Séance".
+    </td>`;
+    tbody.appendChild(tr);
+    return;
+  }
+
   const filtered = students.filter(s => s.name.toLowerCase().includes(filter.toLowerCase()));
+
+  if(filtered.length === 0){
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td colspan="3" style="text-align:center;color:var(--text-gray);padding:24px;">Aucun élève trouvé.</td>`;
+    tbody.appendChild(tr);
+    return;
+  }
+
   filtered.forEach((s) => {
     const realIndex = students.indexOf(s);
     const tr = document.createElement('tr');
@@ -652,27 +815,61 @@ function updateStats(){
   document.getElementById('totalCount').textContent = total;
   document.getElementById('presentCount').textContent = presentCount;
   document.getElementById('absentCount').textContent = absentCount;
-  document.getElementById('presentPct').textContent = ((presentCount/total)*100).toFixed(1) + "%";
-  document.getElementById('absentPct').textContent = ((absentCount/total)*100).toFixed(1) + "%";
+  document.getElementById('presentPct').textContent = total > 0 ? ((presentCount/total)*100).toFixed(1) + "%" : "0%";
+  document.getElementById('absentPct').textContent = total > 0 ? ((absentCount/total)*100).toFixed(1) + "%" : "0%";
 }
 
 document.getElementById('searchInput').addEventListener('input', (e) => {
   renderTable(e.target.value);
 });
 
+/* ---------- ENREGISTREMENT REEL EN BASE DE DONNEES (AJAX) ---------- */
 document.getElementById('saveBtn').addEventListener('click', () => {
+  if(!currentIdSeance || students.length === 0) return;
+
   const btn = document.getElementById('saveBtn');
   const original = btn.innerHTML;
-  btn.innerHTML = "✓ Présence enregistrée";
-  btn.style.background = "#1fb469";
-  setTimeout(() => {
-    btn.innerHTML = original;
-    btn.style.background = "";
-  }, 1800);
+  btn.disabled = true;
+
+  const payload = {
+    id_seance: currentIdSeance,
+    presences: students.map(s => ({ id_eleve: s.id, present: s.present }))
+  };
+
+  fetch('presence.php?action=save_presence', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload)
+  })
+  .then(r => r.json())
+  .then(data => {
+    if(data.success){
+      btn.innerHTML = "✓ Présence enregistrée";
+      btn.style.background = "#1fb469";
+    } else {
+      btn.innerHTML = "✗ Erreur : " + (data.message || "réessayez");
+      btn.style.background = "#f43f5e";
+    }
+    setTimeout(() => {
+      btn.innerHTML = original;
+      btn.style.background = "";
+      btn.disabled = false;
+    }, 1800);
+  })
+  .catch(() => {
+    btn.innerHTML = "✗ Erreur réseau";
+    btn.style.background = "#f43f5e";
+    setTimeout(() => {
+      btn.innerHTML = original;
+      btn.style.background = "";
+      btn.disabled = false;
+    }, 1800);
+  });
 });
 
-renderTable();
-updateStats();
+/* ---------- CHARGEMENT INITIAL ---------- */
+renderCalendar();
+loadSeancesForGroupe(initialGroupe);
 </script>
 </body>
 </html>

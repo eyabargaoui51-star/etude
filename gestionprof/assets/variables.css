@@ -4,12 +4,12 @@
 
    :root {
     /* ---- Brand / Sidebar ---- */
-    --sidebar-bg: #1b1530;
-    --sidebar-bg-soft: #221c3d;
+    --sidebar-bg: #6c4be0;
+    --sidebar-bg-soft: #7163b1;
     --sidebar-text: #b8b3cf;
     --sidebar-text-muted: #6f6a8c;
     --sidebar-active-bg: #6c5ce7;
-    --sidebar-border: #2e2750;
+    --sidebar-border: #5d4eaa;
   
     /* ---- Core Palette ---- */
     --color-primary: #6c5ce7;

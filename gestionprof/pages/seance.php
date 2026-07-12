@@ -1,3 +1,243 @@
+<?php
+/* ============================================================
+   seance.php — Page "Séances"
+   - Charge depuis la base gestion_etude : la liste des groupes et
+     toutes les séances (avec le nom du groupe, le jour calculé et
+     la durée calculée à partir de heure_debut/heure_fin).
+   - Gère aussi, en AJAX (POST avec ajax_action), les opérations
+     CRUD déclenchées par les modals Ajouter/Modifier/Supprimer
+     déjà présents dans le design (aucun changement HTML/CSS).
+
+   ⚠️ IMPORTANT — Modification de schéma nécessaire :
+   La table `seance` fournie n'a pas de colonne `statut`, alors que
+   le design gère 3 statuts ("À venir" / "Terminée" / "Annulée")
+   choisis manuellement dans le formulaire. Exécute cette requête
+   une seule fois dans phpMyAdmin avant d'utiliser cette page :
+
+     ALTER TABLE `seance`
+       ADD COLUMN `statut` ENUM('À venir','Terminée','Annulée')
+       NOT NULL DEFAULT 'À venir' AFTER `chapitre`;
+   ============================================================ */
+
+require_once '../config/database.php';
+
+$joursFr = ["Dimanche","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"];
+$moisFr  = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+
+/* ---------- Date du jour (remplace les valeurs codées en dur "2024-05-15") ---------- */
+$today       = new DateTime();
+$todayIso    = $today->format('Y-m-d');
+$todayDayName   = $joursFr[(int)$today->format('w')];
+$todayDateLabel = $today->format('d') . ' ' . $moisFr[(int)$today->format('n') - 1] . ' ' . $today->format('Y');
+
+// Bornes du mois en cours (valeurs par défaut des filtres de période)
+$premierJourMois = $today->format('Y-m-01');
+$dernierJourMois = $today->format('Y-m-t');
+
+// Semaine en cours (lundi → dimanche), pour la carte statistique et le filtre
+$semaineDebut = clone $today;
+$semaineDebut->modify('-' . ((int)$today->format('N') - 1) . ' days');
+$semaineFin = clone $semaineDebut;
+$semaineFin->modify('+6 days');
+$semaineLabel = 'Du ' . $semaineDebut->format('d/m') . ' au ' . $semaineFin->format('d/m');
+
+/* ---------- Groupes (utilisés pour les filtres et le formulaire) ---------- */
+$groupes = []; // liste simple des noms de groupes
+$groupeNameToId = []; // nom_groupe => id_groupe
+$resGroupes = $conn->query("SELECT id_groupe, nom_groupe FROM groupe ORDER BY nom_groupe ASC");
+while ($row = $resGroupes->fetch_assoc()) {
+    $groupes[] = $row['nom_groupe'];
+    $groupeNameToId[$row['nom_groupe']] = (int)$row['id_groupe'];
+}
+
+/* ---------- Fonctions utilitaires ---------- */
+
+// Nom du jour en français à partir d'une date ISO (YYYY-MM-DD)
+function nomJourFr($dateIso, $joursFr) {
+    $dt = DateTime::createFromFormat('Y-m-d', $dateIso);
+    return $dt ? $joursFr[(int)$dt->format('w')] : '';
+}
+
+// La table ne stocke pas de durée : on la déduit de heure_debut / heure_fin
+// et on la ramène à l'une des deux valeurs gérées par le design ("1h30m" / "2h00m").
+function calculerDuree($heureDebut, $heureFin) {
+    $hd = strlen($heureDebut) === 5 ? $heureDebut . ':00' : $heureDebut;
+    $hf = strlen($heureFin) === 5 ? $heureFin . ':00' : $heureFin;
+    $d1 = DateTime::createFromFormat('H:i:s', $hd);
+    $d2 = DateTime::createFromFormat('H:i:s', $hf);
+    if (!$d1 || !$d2) return '1h30m';
+    $diffMinutes = ($d2->getTimestamp() - $d1->getTimestamp()) / 60;
+    return $diffMinutes >= 105 ? '2h00m' : '1h30m'; // seuil médian entre 90 et 120 min
+}
+
+/* ============================================================
+   Endpoints AJAX (CRUD) — appelés en POST depuis le JS du bas
+   de page. On répond en JSON puis on arrête l'exécution avant
+   tout affichage HTML.
+   ============================================================ */
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_action'])) {
+    header('Content-Type: application/json; charset=UTF-8');
+    $action   = $_POST['ajax_action'];
+    $response = ['success' => false];
+
+    if ($action === 'add' || $action === 'edit') {
+        $id         = (int)($_POST['id'] ?? 0);
+        $groupeNom  = trim($_POST['groupe'] ?? '');
+        $type       = trim($_POST['type'] ?? '');
+        $date       = $_POST['date'] ?? '';
+        $heureDebut = $_POST['heureDebut'] ?? '';
+        $heureFin   = $_POST['heureFin'] ?? '';
+        $sujet      = trim($_POST['sujet'] ?? '');
+        $statut     = $_POST['statut'] ?? 'À venir';
+
+        $typesValides   = ['Cours', 'Révision'];
+        $statutsValides = ['À venir', 'Terminée', 'Annulée'];
+
+        if (!isset($groupeNameToId[$groupeNom]) || !in_array($type, $typesValides, true)
+            || $date === '' || $heureDebut === '' || $heureFin === '' || $sujet === ''
+            || !in_array($statut, $statutsValides, true)) {
+            $response['message'] = "Champs invalides.";
+        } else {
+            $idGroupe = $groupeNameToId[$groupeNom];
+
+            if ($action === 'add') {
+                $stmt = $conn->prepare("INSERT INTO seance (id_groupe, date_seance, heure_debut, heure_fin, type, chapitre, statut) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                $stmt->bind_param("issssss", $idGroupe, $date, $heureDebut, $heureFin, $type, $sujet, $statut);
+                if ($stmt->execute()) {
+                    $response['success'] = true;
+                    $response['id']    = $stmt->insert_id;
+                    $response['jour']  = nomJourFr($date, $joursFr);
+                    $response['duree'] = calculerDuree($heureDebut, $heureFin);
+                } else {
+                    $response['message'] = "Erreur lors de l'ajout : " . $stmt->error;
+                }
+                $stmt->close();
+            } else {
+                if ($id <= 0) {
+                    $response['message'] = "ID invalide.";
+                } else {
+                    $stmt = $conn->prepare("UPDATE seance SET id_groupe=?, date_seance=?, heure_debut=?, heure_fin=?, type=?, chapitre=?, statut=? WHERE id_seance=?");
+                    $stmt->bind_param("issssssi", $idGroupe, $date, $heureDebut, $heureFin, $type, $sujet, $statut, $id);
+                    if ($stmt->execute()) {
+                        $response['success'] = true;
+                        $response['jour']  = nomJourFr($date, $joursFr);
+                        $response['duree'] = calculerDuree($heureDebut, $heureFin);
+                    } else {
+                        $response['message'] = "Erreur lors de la modification : " . $stmt->error;
+                    }
+                    $stmt->close();
+                }
+            }
+        }
+    }
+
+    elseif ($action === 'delete') {
+        $id = (int)($_POST['id'] ?? 0);
+        if ($id > 0) {
+            $stmt = $conn->prepare("DELETE FROM seance WHERE id_seance = ?");
+            $stmt->bind_param("i", $id);
+            $response['success'] = $stmt->execute();
+            if (!$response['success']) $response['message'] = $stmt->error;
+            $stmt->close();
+        } else {
+            $response['message'] = "ID invalide.";
+        }
+    }
+
+    else {
+        $response['message'] = "Action inconnue.";
+    }
+
+    echo json_encode($response, JSON_UNESCAPED_UNICODE);
+    $conn->close();
+    exit;
+}
+
+/* ============================================================
+   Rendu initial de la page (requête GET normale)
+   ============================================================ */
+$seances = [];
+$sqlSeances = "SELECT s.id_seance, s.date_seance, s.heure_debut, s.heure_fin, s.type, s.chapitre, s.statut, g.nom_groupe
+               FROM seance s
+               INNER JOIN groupe g ON g.id_groupe = s.id_groupe
+               ORDER BY s.date_seance ASC, s.heure_debut ASC";
+$resSeances = $conn->query($sqlSeances);
+
+if ($resSeances === false) {
+    die(
+        "Erreur SQL : " . $conn->error .
+        "<br><br>Si l'erreur mentionne la colonne <code>statut</code>, exécute d'abord cette requête dans phpMyAdmin :<br>" .
+        "<pre>ALTER TABLE `seance` ADD COLUMN `statut` ENUM('À venir','Terminée','Annulée') NOT NULL DEFAULT 'À venir' AFTER `chapitre`;</pre>"
+    );
+}
+
+while ($row = $resSeances->fetch_assoc()) {
+    $seances[] = [
+        'id'         => (int)$row['id_seance'],
+        'groupe'     => $row['nom_groupe'],
+        'type'       => $row['type'],
+        'date'       => $row['date_seance'],
+        'jour'       => nomJourFr($row['date_seance'], $joursFr),
+        'heureDebut' => substr($row['heure_debut'], 0, 5),
+        'heureFin'   => substr($row['heure_fin'], 0, 5),
+        'duree'      => calculerDuree($row['heure_debut'], $row['heure_fin']),
+        'sujet'      => $row['chapitre'],
+        'statut'     => $row['statut'],
+    ];
+}
+
+/* ---------- Notifications réelles (remplacent les données factices) ----------
+   - Rappels : séances "À venir" du jour qui n'ont pas encore commencé
+   - Annulations : séances "Annulée" dont la date n'est pas encore passée
+   Si la base ne contient aucune séance correspondante, le tableau reste vide
+   et le dropdown affichera "Aucune notification pour le moment." ---------- */
+$notifications = [];
+
+$nowTime = $today->format('H:i:s');
+$stmtR = $conn->prepare("SELECT s.id_seance, s.chapitre, s.heure_debut, g.nom_groupe
+                          FROM seance s INNER JOIN groupe g ON g.id_groupe = s.id_groupe
+                          WHERE s.date_seance = ? AND s.statut = 'À venir' AND s.heure_debut >= ?
+                          ORDER BY s.heure_debut ASC LIMIT 5");
+$stmtR->bind_param("ss", $todayIso, $nowTime);
+$stmtR->execute();
+$resR = $stmtR->get_result();
+while ($row = $resR->fetch_assoc()) {
+    $heureDebutDt = DateTime::createFromFormat('Y-m-d H:i:s', $todayIso . ' ' . $row['heure_debut']);
+    $diffMinutes = max(0, round(($heureDebutDt->getTimestamp() - $today->getTimestamp()) / 60));
+    $timeLabel = $diffMinutes < 60 ? "Dans {$diffMinutes} min" : "Dans " . round($diffMinutes / 60) . "h";
+    $notifications[] = [
+        'id'     => (int)$row['id_seance'],
+        'type'   => 'rappel',
+        'title'  => 'Rappel',
+        'text'   => $row['chapitre'] . ' · ' . $row['nom_groupe'] . ' commence bientôt.',
+        'time'   => $timeLabel,
+        'unread' => true,
+    ];
+}
+$stmtR->close();
+
+$stmtA = $conn->prepare("SELECT s.id_seance, s.chapitre, s.date_seance, g.nom_groupe
+                          FROM seance s INNER JOIN groupe g ON g.id_groupe = s.id_groupe
+                          WHERE s.statut = 'Annulée' AND s.date_seance >= ?
+                          ORDER BY s.date_seance ASC LIMIT 5");
+$stmtA->bind_param("s", $todayIso);
+$stmtA->execute();
+$resA = $stmtA->get_result();
+while ($row = $resA->fetch_assoc()) {
+    $dateDt = DateTime::createFromFormat('Y-m-d', $row['date_seance']);
+    $notifications[] = [
+        'id'     => (int)$row['id_seance'],
+        'type'   => 'annulee',
+        'title'  => 'Séance annulée',
+        'text'   => $row['chapitre'] . ' · ' . $row['nom_groupe'] . ' a été annulée.',
+        'time'   => 'Le ' . ($dateDt ? $dateDt->format('d/m') : $row['date_seance']),
+        'unread' => true,
+    ];
+}
+$stmtA->close();
+
+$conn->close();
+?>
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -54,6 +294,15 @@
   }
   .menu-btn:hover{ background: var(--border); }
   .page-title{ font-size: 22px; font-weight: 700; color: var(--navy); }
+  .title-stack{ display:flex; flex-direction:column; }
+  .breadcrumb{
+    color:#8B8D9C;
+    font-size:14px;
+    margin-top:6px;
+  }
+  .breadcrumb a{color:#8B8D9C;text-decoration:none;transition:color .15s ease;}
+  .breadcrumb a:hover{color:#6C5CE7;}
+  .breadcrumb span.current{color:#5B5D6E;}
 
   .topbar-right{ display:flex; align-items:center; gap:14px; flex:1; justify-content:flex-end; }
 
@@ -336,7 +585,10 @@
   <!-- Topbar -->
   <div class="topbar">
     <div class="topbar-left">
-      <div class="page-title">Séances</div>
+      <div class="title-stack">
+        <div class="page-title">Séances</div>
+        <div class="breadcrumb"><a href="dashboard.php">Dashboard</a> &nbsp;›&nbsp; <span class="current">Séances</span></div>
+      </div>
     </div>
     <div class="topbar-right">
       <div class="search-box">
@@ -378,8 +630,8 @@
       <div class="dropdown-wrap">
         <div class="date-picker" id="dateToggle">
           <div>
-            <div class="lbl" id="topDate">15 Mai 2024</div>
-            <div class="sub" id="topDay">Mercredi</div>
+            <div class="lbl" id="topDate"><?php echo $todayDateLabel; ?></div>
+            <div class="sub" id="topDay"><?php echo $todayDayName; ?></div>
           </div>
           <svg width="12" height="8" viewBox="0 0 12 8" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1 1l5 5 5-5"/></svg>
         </div>
@@ -406,7 +658,7 @@
       <div>
         <h4>Séances cette semaine</h4>
         <div class="num" id="statWeek">6</div>
-        <div class="desc">Du 13/05 au 19/05</div>
+        <div class="desc"><?php echo $semaineLabel; ?></div>
       </div>
     </div>
     <div class="stat-card">
@@ -416,7 +668,7 @@
       <div>
         <h4>Séances aujourd'hui</h4>
         <div class="num" id="statToday">2</div>
-        <div class="desc">Mercredi 15 Mai 2024</div>
+        <div class="desc"><?php echo $todayDayName . ' ' . $todayDateLabel; ?></div>
       </div>
     </div>
     <div class="stat-card">
@@ -436,10 +688,10 @@
     <div class="filter-group period">
       <div>
         <label>Période</label>
-        <input type="date" class="date-input" id="filterFrom" value="2024-05-01">
+        <input type="date" class="date-input" id="filterFrom" value="<?php echo $premierJourMois; ?>">
       </div>
       <span class="date-sep">→</span>
-      <input type="date" class="date-input" id="filterTo" value="2024-05-31" style="margin-bottom:0;">
+      <input type="date" class="date-input" id="filterTo" value="<?php echo $dernierJourMois; ?>" style="margin-bottom:0;">
     </div>
     <div class="filter-group">
       <label>Groupe</label>
@@ -585,8 +837,8 @@
 <div class="toast" id="toast"><span class="dot"></span><span id="toastMsg">Séance ajoutée avec succès</span></div>
 
 <script>
-  // ===== Data =====
-  const groupes = ["Info A","Info B","Info C","Math A","Math B","Tech A","Tech B","Sciences A"];
+  // ===== Data (chargées depuis la base via PHP) =====
+  const groupes = <?php echo json_encode($groupes, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
   const sujets = {
     "Info A":["Les structures répétitives","Algorithmique","Les fonctions récursives","POO - Introduction"],
     "Info B":["Les tableaux","Les pointeurs","Structures de données"],
@@ -598,44 +850,18 @@
     "Sciences A":["Chimie organique","Physique - Mécanique"]
   };
 
-  let seances = [];
-  function seedData(){
-    const raw = [
-      [1,"Info A","Cours","2024-05-15","Mercredi","14:00","16:00","2h00m","Les structures répétitives","À venir"],
-      [2,"Math A","Révision","2024-05-15","Mercredi","16:30","18:00","1h30m","Fonctions – Exercices","À venir"],
-      [3,"Info B","Cours","2024-05-16","Jeudi","14:00","16:00","2h00m","Les tableaux","À venir"],
-      [4,"Tech A","Cours","2024-05-16","Jeudi","16:30","18:30","2h00m","Réseaux informatiques","À venir"],
-      [5,"Info A","Révision","2024-05-18","Samedi","10:00","12:00","2h00m","Algorithmique","Terminée"],
-      [6,"Sciences A","Cours","2024-05-18","Samedi","14:30","16:30","2h00m","Chimie organique","Terminée"],
-      [7,"Math B","Révision","2024-05-19","Dimanche","10:00","11:30","1h30m","Trigonométrie","Annulée"],
-      [8,"Info C","Cours","2024-05-19","Dimanche","16:00","18:00","2h00m","Les fonctions","Terminée"],
-      [9,"Tech B","Cours","2024-05-20","Lundi","14:00","16:00","2h00m","Base de données","À venir"],
-      [10,"Info B","Révision","2024-05-20","Lundi","16:30","18:00","1h30m","Examen blanc","À venir"],
-      [11,"Math A","Cours","2024-05-21","Mardi","14:00","16:00","2h00m","Dérivées","À venir"],
-      [12,"Info A","Cours","2024-05-21","Mardi","16:30","18:30","2h00m","POO - Introduction","À venir"],
-      [13,"Sciences A","Révision","2024-05-22","Mercredi","10:00","11:30","1h30m","Physique - Mécanique","À venir"],
-      [14,"Tech A","Cours","2024-05-22","Mercredi","14:00","16:00","2h00m","Architecture système","À venir"],
-      [15,"Info C","Révision","2024-05-23","Jeudi","16:30","18:00","1h30m","Tri et recherche","À venir"],
-      [16,"Math B","Cours","2024-05-24","Vendredi","14:00","16:00","2h00m","Probabilités","À venir"],
-      [17,"Info B","Cours","2024-05-24","Vendredi","16:30","18:30","2h00m","Structures de données","À venir"],
-      [18,"Tech B","Révision","2024-05-25","Samedi","10:00","11:30","1h30m","Modélisation UML","Terminée"],
-      [19,"Info A","Cours","2024-05-25","Samedi","14:00","16:00","2h00m","Les fonctions récursives","Terminée"],
-      [20,"Math A","Révision","2024-05-26","Dimanche","10:00","11:30","1h30m","Suites numériques","Terminée"],
-      [21,"Sciences A","Cours","2024-05-27","Lundi","14:00","16:00","2h00m","Chimie organique","Terminée"],
-      [22,"Info C","Cours","2024-05-27","Lundi","16:30","18:30","2h00m","Gestion de fichiers","Terminée"],
-      [23,"Tech A","Révision","2024-05-28","Mardi","10:00","11:30","1h30m","Réseaux informatiques","Terminée"],
-      [24,"Info B","Cours","2024-05-28","Mardi","14:00","16:00","2h00m","Les pointeurs","Terminée"]
-    ];
-    seances = raw.map(r=>({
-      id:r[0], groupe:r[1], type:r[2], date:r[3], jour:r[4], heureDebut:r[5], heureFin:r[6],
-      duree:r[7], sujet:r[8], statut:r[9]
-    }));
-  }
-  seedData();
+  let seances = <?php echo json_encode($seances, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 
   // ===== State =====
   let currentPage = 1;
   let perPage = 10;
+
+  // Valeurs réelles injectées depuis PHP (remplacent les dates codées en dur "2024-05-15")
+  const TODAY_ISO = <?php echo json_encode($todayIso); ?>;
+  const SEMAINE_DEBUT_ISO = <?php echo json_encode($semaineDebut->format('Y-m-d')); ?>;
+  const SEMAINE_FIN_ISO = <?php echo json_encode($semaineFin->format('Y-m-d')); ?>;
+  const DEFAULT_FROM = <?php echo json_encode($premierJourMois); ?>;
+  const DEFAULT_TO = <?php echo json_encode($dernierJourMois); ?>;
 
   const jours = ["Dimanche","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"];
   const moisFr = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
@@ -665,13 +891,11 @@
     document.getElementById('statTotal').textContent = seances.length;
     document.getElementById('statDone').textContent = seances.filter(s=>s.statut==='Terminée').length;
 
-    const today = new Date('2024-05-15T00:00:00');
-    const todayIso = '2024-05-15';
-    document.getElementById('statToday').textContent = seances.filter(s=>s.date===todayIso).length;
+    document.getElementById('statToday').textContent = seances.filter(s=>s.date===TODAY_ISO).length;
 
-    // week of 13/05 - 19/05
-    const weekStart = new Date('2024-05-13T00:00:00');
-    const weekEnd = new Date('2024-05-19T00:00:00');
+    // semaine en cours (lundi → dimanche)
+    const weekStart = new Date(SEMAINE_DEBUT_ISO+'T00:00:00');
+    const weekEnd = new Date(SEMAINE_FIN_ISO+'T00:00:00');
     const weekCount = seances.filter(s=>{
       const d = new Date(s.date+'T00:00:00');
       return d>=weekStart && d<=weekEnd;
@@ -830,12 +1054,26 @@
   };
   document.getElementById('btnConfirmDelete').onclick = ()=>{
     if(deleteTargetId!==null){
-      seances = seances.filter(s=>s.id !== deleteTargetId);
-      showToast('Séance supprimée avec succès');
+      const idASupprimer = deleteTargetId;
+      fetch('seance.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ ajax_action: 'delete', id: idASupprimer })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if(data.success){
+          seances = seances.filter(s=>s.id !== idASupprimer);
+          showToast('Séance supprimée avec succès');
+        } else {
+          showToast(data.message || 'Erreur lors de la suppression.');
+        }
+        render();
+      })
+      .catch(()=> showToast('Erreur réseau. Réessayez.'));
     }
     document.getElementById('confirmOverlay').classList.remove('show');
     deleteTargetId = null;
-    render();
   };
 
   // ===== Add / Edit form =====
@@ -856,7 +1094,7 @@
       document.getElementById('fStatut').value = s.statut;
     } else {
       document.getElementById('modalTitle').textContent = 'Ajouter une séance';
-      document.getElementById('fDate').value = '2024-05-15';
+      document.getElementById('fDate').value = TODAY_ISO;
       document.getElementById('fHeureDebut').value = '14:00';
       document.getElementById('fHeureFin').value = '16:00';
     }
@@ -874,23 +1112,46 @@
       groupe: document.getElementById('fGroupe').value,
       type: document.getElementById('fType').value,
       date: document.getElementById('fDate').value,
-      duree: document.getElementById('fDuree').value,
       heureDebut: document.getElementById('fHeureDebut').value,
       heureFin: document.getElementById('fHeureFin').value,
       sujet: document.getElementById('fSujet').value,
       statut: document.getElementById('fStatut').value
     };
-    if(editTargetId !== null){
-      const s = seances.find(x=>x.id===editTargetId);
-      Object.assign(s, data);
-      showToast('Séance modifiée avec succès');
-    } else {
-      const newId = seances.length ? Math.max(...seances.map(s=>s.id))+1 : 1;
-      seances.push({ id:newId, ...data });
-      showToast('Séance ajoutée avec succès');
-    }
-    document.getElementById('modalOverlay').classList.remove('show');
-    render();
+
+    const submitBtn = this.querySelector('button[type="submit"]');
+    if(submitBtn) submitBtn.disabled = true;
+
+    const isEdit = editTargetId !== null;
+    const body = new URLSearchParams({
+      ajax_action: isEdit ? 'edit' : 'add',
+      id: isEdit ? editTargetId : '',
+      ...data
+    });
+
+    fetch('seance.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body
+    })
+    .then(res => res.json())
+    .then(res => {
+      if(res.success){
+        if(isEdit){
+          const s = seances.find(x=>x.id===editTargetId);
+          Object.assign(s, data, { jour: res.jour, duree: res.duree });
+          showToast('Séance modifiée avec succès');
+        } else {
+          seances.push({ id: res.id, ...data, jour: res.jour, duree: res.duree });
+          showToast('Séance ajoutée avec succès');
+        }
+        document.getElementById('modalOverlay').classList.remove('show');
+        render();
+      } else {
+        showToast(res.message || "Erreur lors de l'enregistrement.");
+      }
+    })
+    .catch(()=> showToast('Erreur réseau. Réessayez.'))
+    .finally(()=>{ if(submitBtn) submitBtn.disabled = false; });
   });
 
   // ===== Toast =====
@@ -910,8 +1171,8 @@
   });
 
   document.getElementById('btnReset').onclick = ()=>{
-    document.getElementById('filterFrom').value = '2024-05-01';
-    document.getElementById('filterTo').value = '2024-05-31';
+    document.getElementById('filterFrom').value = DEFAULT_FROM;
+    document.getElementById('filterTo').value = DEFAULT_TO;
     document.getElementById('filterGroupe').value = '';
     document.getElementById('filterType').value = '';
     document.getElementById('filterStatut').value = '';
@@ -934,12 +1195,8 @@
     if(e.target === this) this.classList.remove('show');
   });
 
-  // ===== Notifications dropdown =====
-  let notifications = [
-    { id:1, type:'annulee', title:'Séance annulée', text:'Trigonométrie · Math B a été annulée.', time:'Il y a 20 min', unread:true },
-    { id:2, type:'ajout', title:'Nouvelle séance ajoutée', text:'Base de données · Tech B, le 20/05 à 14:00.', time:'Il y a 1h', unread:true },
-    { id:3, type:'rappel', title:'Rappel', text:'Les structures répétitives · Info A commence dans 1h.', time:'Il y a 2h', unread:true },
-  ];
+  // ===== Notifications dropdown (données réelles issues de la base) =====
+  let notifications = <?php echo json_encode($notifications, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 
   function notifIcon(type){
     if(type==='annulee') return {bg:'var(--red-bg)', color:'var(--red-text)', svg:'<path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/>'};
@@ -1023,8 +1280,9 @@
   });
 
   // ===== Calendar mini widget =====
-  let calYear = 2024, calMonth = 4; // Mai = index 4
-  let selectedDate = '2024-05-15';
+  let calYear = new Date(TODAY_ISO+'T00:00:00').getFullYear();
+  let calMonth = new Date(TODAY_ISO+'T00:00:00').getMonth();
+  let selectedDate = TODAY_ISO;
 
   function seancesOnDate(iso){
     return seances.some(s => s.date === iso);
@@ -1038,7 +1296,7 @@
     const firstDay = new Date(calYear, calMonth, 1).getDay();
     const daysInMonth = new Date(calYear, calMonth+1, 0).getDate();
     const daysInPrevMonth = new Date(calYear, calMonth, 0).getDate();
-    const todayIso = '2024-05-15';
+    const todayIso = TODAY_ISO;
 
     const cells = [];
     for(let i=firstDay-1; i>=0; i--){

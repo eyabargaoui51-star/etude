@@ -1,3 +1,200 @@
+<?php
+/* ============================================================
+   eleve.php — Page "Liste des élèves"
+   - Charge depuis la base gestion_etude : filières/groupes et
+     élèves (avec leur statut de paiement du mois en cours).
+   - Gère aussi, en AJAX (POST avec ajax_action), les opérations
+     CRUD déclenchées par les modals Ajouter / Modifier / Supprimer
+     déjà présents dans le design (aucun changement HTML/CSS).
+   ============================================================ */
+
+require_once '../config/database.php';
+
+// ---- Mois / année actuels (utilisés pour le statut de paiement affiché) ----
+$moisFr = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+$moisActuel    = $moisFr[(int)date('n') - 1];
+$anneeActuelle = (int)date('Y');
+
+/* ---------- Chargement des groupes / filières (utilisé partout ci-dessous) ----------
+   IMPORTANT : on identifie chaque groupe par son id_groupe (et non par son nom),
+   car rien n'empêche en base d'avoir deux groupes portant le même nom dans deux
+   filières différentes. Utiliser le nom comme clé provoquerait une collision et
+   pourrait rattacher un élève au mauvais groupe/filière. */
+$groupesParFiliere    = []; // nom_filiere => [ ['id' => id_groupe, 'nom' => nom_groupe], ... ]
+$groupeIdToNom         = []; // id_groupe => nom_groupe
+$groupeIdToFiliereName = []; // id_groupe => nom_filiere
+$idsGroupesValides     = []; // id_groupe => true (pour validation rapide)
+
+$sqlGroupes = "SELECT g.id_groupe, g.nom_groupe, f.nom_filiere
+               FROM groupe g
+               INNER JOIN filiere f ON f.id_filiere = g.id_filiere
+               ORDER BY f.nom_filiere ASC, g.nom_groupe ASC";
+$resGroupes = $conn->query($sqlGroupes);
+while ($row = $resGroupes->fetch_assoc()) {
+    $idGroupe = (int)$row['id_groupe'];
+    $groupesParFiliere[$row['nom_filiere']][] = ['id' => $idGroupe, 'nom' => $row['nom_groupe']];
+    $groupeIdToNom[$idGroupe]           = $row['nom_groupe'];
+    $groupeIdToFiliereName[$idGroupe]   = $row['nom_filiere'];
+    $idsGroupesValides[$idGroupe]       = true;
+}
+
+/* ---------- Fonction : crée ou met à jour le paiement du mois en cours ----------
+   Remarque : le formulaire Ajouter/Modifier élève ne demande qu'un statut
+   ("Payé" / "Non payé"), pas de montant. Le montant à payer se règle sur la
+   page Paiements ; ici on utilise 0.00 par défaut si aucune ligne n'existe
+   encore pour ce mois, et on se contente de mettre à jour le statut sinon. */
+function definirStatutPaiement($conn, $idEleve, $statutFront, $moisActuel, $anneeActuelle) {
+    $statutDb = ($statutFront === 'Payé') ? 'Payé' : 'En attente';
+
+    $stmt = $conn->prepare("SELECT id_paiement FROM paiement WHERE id_eleve = ? AND mois = ? AND annee = ? LIMIT 1");
+    $stmt->bind_param("isi", $idEleve, $moisActuel, $anneeActuelle);
+    $stmt->execute();
+    $existant = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    if ($existant) {
+        $stmt = $conn->prepare("UPDATE paiement SET statut = ? WHERE id_paiement = ?");
+        $stmt->bind_param("si", $statutDb, $existant['id_paiement']);
+        $stmt->execute();
+        $stmt->close();
+    } else {
+        $montantDefaut = 0.00;
+        $stmt = $conn->prepare("INSERT INTO paiement (id_eleve, mois, annee, montant_a_payer, statut) VALUES (?, ?, ?, ?, ?)");
+        $stmt->bind_param("isids", $idEleve, $moisActuel, $anneeActuelle, $montantDefaut, $statutDb);
+        $stmt->execute();
+        $stmt->close();
+    }
+}
+
+/* ============================================================
+   Endpoints AJAX (CRUD) — appelés en POST depuis le JS du bas
+   de page. On répond en JSON puis on arrête l'exécution avant
+   tout affichage HTML.
+   ============================================================ */
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_action'])) {
+    header('Content-Type: application/json; charset=UTF-8');
+    $action   = $_POST['ajax_action'];
+    $response = ['success' => false];
+
+    if ($action === 'add') {
+        $nom        = trim($_POST['nom'] ?? '');
+        $prenom     = trim($_POST['prenom'] ?? '');
+        $tel        = trim($_POST['tel'] ?? '');
+        $idGroupe   = (int)($_POST['groupe'] ?? 0); // le front envoie désormais l'id_groupe
+        $dateEntree = $_POST['dateEntree'] ?? date('Y-m-d');
+        $paiement   = $_POST['paiement'] ?? 'Non payé';
+
+        if ($nom === '' || $prenom === '' || !isset($idsGroupesValides[$idGroupe])) {
+            $response['message'] = "Champs invalides.";
+        } else {
+            $stmt = $conn->prepare("INSERT INTO eleve (nom, prenom, telephone, date_inscription, id_groupe) VALUES (?, ?, ?, ?, ?)");
+            $stmt->bind_param("ssssi", $nom, $prenom, $tel, $dateEntree, $idGroupe);
+            if ($stmt->execute()) {
+                $nouvelId = $stmt->insert_id;
+                $stmt->close();
+                definirStatutPaiement($conn, $nouvelId, $paiement, $moisActuel, $anneeActuelle);
+                $response['success'] = true;
+                $response['id']      = $nouvelId;
+                $response['filiere'] = $groupeIdToFiliereName[$idGroupe] ?? '';
+                $response['groupe']  = $groupeIdToNom[$idGroupe] ?? '';
+            } else {
+                $response['message'] = "Erreur lors de l'ajout : " . $stmt->error;
+            }
+        }
+    }
+
+    elseif ($action === 'edit') {
+        $id         = (int)($_POST['id'] ?? 0);
+        $nom        = trim($_POST['nom'] ?? '');
+        $prenom     = trim($_POST['prenom'] ?? '');
+        $tel        = trim($_POST['tel'] ?? '');
+        $idGroupe   = (int)($_POST['groupe'] ?? 0); // le front envoie désormais l'id_groupe
+        $dateEntree = $_POST['dateEntree'] ?? date('Y-m-d');
+        $paiement   = $_POST['paiement'] ?? 'Non payé';
+
+        if ($id <= 0 || $nom === '' || $prenom === '' || !isset($idsGroupesValides[$idGroupe])) {
+            $response['message'] = "Champs invalides.";
+        } else {
+            $stmt = $conn->prepare("UPDATE eleve SET nom=?, prenom=?, telephone=?, date_inscription=?, id_groupe=? WHERE id_eleve=?");
+            $stmt->bind_param("ssssii", $nom, $prenom, $tel, $dateEntree, $idGroupe, $id);
+            if ($stmt->execute()) {
+                $stmt->close();
+                definirStatutPaiement($conn, $id, $paiement, $moisActuel, $anneeActuelle);
+                $response['success'] = true;
+                $response['filiere'] = $groupeIdToFiliereName[$idGroupe] ?? '';
+                $response['groupe']  = $groupeIdToNom[$idGroupe] ?? '';
+            } else {
+                $response['message'] = "Erreur lors de la modification : " . $stmt->error;
+            }
+        }
+    }
+
+    elseif ($action === 'delete') {
+        $id = (int)($_POST['id'] ?? 0);
+        if ($id > 0) {
+            $stmt = $conn->prepare("DELETE FROM eleve WHERE id_eleve = ?");
+            $stmt->bind_param("i", $id);
+            $response['success'] = $stmt->execute();
+            if (!$response['success']) $response['message'] = $stmt->error;
+            $stmt->close();
+        } else {
+            $response['message'] = "ID invalide.";
+        }
+    }
+
+    else {
+        $response['message'] = "Action inconnue.";
+    }
+
+    echo json_encode($response, JSON_UNESCAPED_UNICODE);
+    $conn->close();
+    exit;
+}
+
+/* ============================================================
+   Rendu initial de la page (requête GET normale)
+   ============================================================ */
+
+// Paiements du mois en cours, indexés par élève (évite une requête par élève)
+$paiementsMoisCourant = []; // id_eleve => statut
+$stmtP = $conn->prepare("SELECT id_eleve, statut FROM paiement WHERE mois = ? AND annee = ?");
+$stmtP->bind_param("si", $moisActuel, $anneeActuelle);
+$stmtP->execute();
+$resP = $stmtP->get_result();
+while ($row = $resP->fetch_assoc()) {
+    $paiementsMoisCourant[(int)$row['id_eleve']] = $row['statut'];
+}
+$stmtP->close();
+
+// Liste complète des élèves avec filière/groupe/statut de paiement
+$eleves = [];
+$sqlEleves = "SELECT e.id_eleve, e.nom, e.prenom, e.telephone, e.date_inscription, e.id_groupe,
+                     g.nom_groupe, f.nom_filiere
+              FROM eleve e
+              INNER JOIN groupe g  ON g.id_groupe  = e.id_groupe
+              INNER JOIN filiere f ON f.id_filiere = g.id_filiere
+              ORDER BY e.nom ASC";
+$resEleves = $conn->query($sqlEleves);
+while ($row = $resEleves->fetch_assoc()) {
+    $idEleve = (int)$row['id_eleve'];
+    $statutBrut = $paiementsMoisCourant[$idEleve] ?? null;
+
+    $eleves[] = [
+        'id'         => $idEleve,
+        'nom'        => $row['nom'],
+        'prenom'     => $row['prenom'],
+        'tel'        => $row['telephone'] ?: '',
+        'filiere'    => $row['nom_filiere'],
+        'groupe'     => $row['nom_groupe'],
+        'idGroupe'   => (int)$row['id_groupe'], // utilisé par le JS pour présélectionner le bon groupe (évite toute ambiguïté en cas de noms de groupe identiques)
+        'statut'     => 'Actif', // champ non stocké en base, non affiché dans ce design
+        'dateEntree' => $row['date_inscription'],
+        'paiement'   => ($statutBrut === 'Payé') ? 'Payé' : 'Non payé',
+    ];
+}
+
+$conn->close();
+?>
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -548,7 +745,7 @@
 
   <!-- Breadcrumb -->
   <nav class="breadcrumb" aria-label="Fil d'ariane">
-    <a href="dashboard.html">Dashboard</a>
+    <a href="dashboard.php">Dashboard</a>
     <i data-lucide="chevron-right"></i>
     <span class="current">Élèves</span>
   </nav>
@@ -756,17 +953,15 @@
 
   safeCreateIcons();
 
-  /* ---------- Données ---------- */
-  const groupesParFiliere = {
-    "Sciences Expérimentales": ["3ème Sc Exp - Groupe A", "3ème Sc Exp - Groupe B"],
-    "Mathématiques": ["3ème Maths - Groupe A", "3ème Maths - Groupe B"],
-    "Informatique": ["3ème Info - Groupe A", "3ème Info - Groupe B"],
-    "Économie et Gestion": ["3ème Éco - Groupe A"],
-    "Lettres": ["3ème Lettres - Groupe A"]
-  };
+  /* ---------- Données (chargées depuis la base via PHP) ----------
+     groupesParFiliere : { "Bac Math": [{id, nom}, ...], ... }
+     Chaque groupe est identifié par son id (et non son nom) pour éviter
+     toute ambiguïté si deux groupes portent le même nom dans deux filières
+     différentes. */
+  const groupesParFiliere = <?php echo json_encode($groupesParFiliere, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 
   const toutesLesFilieres = Object.keys(groupesParFiliere);
-  const tousLesGroupes = Object.values(groupesParFiliere).flat();
+  const tousLesGroupes = Object.values(groupesParFiliere).flat(); // [{id, nom}, ...]
 
   function initiales(nom, prenom){
     const n = nom && nom[0] ? nom[0] : '';
@@ -774,20 +969,22 @@
     return (p + n).toUpperCase();
   }
 
-  let eleves = [
-    { id: 1, nom: "Ben Ali", prenom: "Achref", tel: "55 123 456", filiere: "Sciences Expérimentales", groupe: "3ème Sc Exp - Groupe A", statut: "Actif", dateEntree: "2024-09-15", paiement: "Payé" },
-    { id: 2, nom: "Trabelsi", prenom: "Yassine", tel: "22 456 789", filiere: "Informatique", groupe: "3ème Info - Groupe A", statut: "Actif", dateEntree: "2024-09-16", paiement: "Payé" },
-    { id: 3, nom: "Gharbi", prenom: "Mariem", tel: "20 112 233", filiere: "Mathématiques", groupe: "3ème Maths - Groupe B", statut: "Actif", dateEntree: "2024-09-18", paiement: "Non payé" },
-    { id: 4, nom: "Cherni", prenom: "Nour", tel: "58 998 776", filiere: "Économie et Gestion", groupe: "3ème Éco - Groupe A", statut: "Inactif", dateEntree: "2024-09-20", paiement: "Non payé" },
-    { id: 5, nom: "Jlassi", prenom: "Omar", tel: "23 654 321", filiere: "Informatique", groupe: "3ème Info - Groupe B", statut: "Actif", dateEntree: "2024-09-22", paiement: "Payé" },
-    { id: 6, nom: "Khemiri", prenom: "Salma", tel: "50 741 852", filiere: "Lettres", groupe: "3ème Lettres - Groupe A", statut: "Actif", dateEntree: "2024-09-23", paiement: "Payé" },
-    { id: 7, nom: "Bouazizi", prenom: "Ahmed", tel: "27 369 258", filiere: "Sciences Expérimentales", groupe: "3ème Sc Exp - Groupe B", statut: "Actif", dateEntree: "2024-09-25", paiement: "Non payé" },
-    { id: 8, nom: "Sassi", prenom: "Ines", tel: "29 147 963", filiere: "Mathématiques", groupe: "3ème Maths - Groupe A", statut: "Inactif", dateEntree: "2024-09-27", paiement: "Non payé" },
-    { id: 9, nom: "Mabrouk", prenom: "Karim", tel: "24 852 741", filiere: "Informatique", groupe: "3ème Info - Groupe A", statut: "Actif", dateEntree: "2024-09-28", paiement: "Payé" },
-    { id: 10, nom: "Zouari", prenom: "Lina", tel: "26 963 147", filiere: "Sciences Expérimentales", groupe: "3ème Sc Exp - Groupe A", statut: "Actif", dateEntree: "2024-09-29", paiement: "Payé" }
-  ];
+  /* ---------- Échappement HTML (protection XSS) ----------
+     Les données élève viennent de la base ; on échappe tout texte inséré
+     via innerHTML pour empêcher qu'une valeur contenant des caractères
+     HTML ne casse l'affichage ou n'exécute du code dans le navigateur. */
+  function escapeHtml(str){
+    if(str === null || str === undefined) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
 
-  let nextId = eleves.length + 1;
+  let eleves = <?php echo json_encode($eleves, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+
   let currentTargetId = null;
 
   /* ---------- Populate filter selects ---------- */
@@ -801,7 +998,7 @@
   const filterGroupe = document.getElementById('filterGroupe');
   tousLesGroupes.forEach(g => {
     const opt = document.createElement('option');
-    opt.value = g; opt.textContent = g;
+    opt.value = g.id; opt.textContent = g.nom;
     filterGroupe.appendChild(opt);
   });
 
@@ -820,7 +1017,7 @@
       const fullName = (e.prenom + " " + e.nom).toLowerCase();
       const matchQ = !q || fullName.includes(q);
       const matchFil = !fil || e.filiere === fil;
-      const matchGrp = !grp || e.groupe === grp;
+      const matchGrp = !grp || e.idGroupe === Number(grp);
       return matchQ && matchFil && matchGrp;
     });
   }
@@ -836,16 +1033,16 @@
       tr.innerHTML = `
         <td>
           <div class="student-cell">
-            <div class="student-avatar">${initiales(e.nom, e.prenom)}</div>
+            <div class="student-avatar">${escapeHtml(initiales(e.nom, e.prenom))}</div>
             <div>
-              <div class="student-name">${e.prenom} ${e.nom}</div>
-              <div class="student-sub">${e.tel || ''}</div>
+              <div class="student-name">${escapeHtml(e.prenom)} ${escapeHtml(e.nom)}</div>
+              <div class="student-sub">${escapeHtml(e.tel || '')}</div>
             </div>
           </div>
         </td>
-        <td>${e.filiere}</td>
-        <td><span class="pill pill-purple">${e.groupe}</span></td>
-        <td><span class="pill ${e.paiement === 'Payé' ? 'pill-green' : 'pill-amber'}">${e.paiement || 'Non payé'}</span></td>
+        <td>${escapeHtml(e.filiere)}</td>
+        <td><span class="pill pill-purple">${escapeHtml(e.groupe)}</span></td>
+        <td><span class="pill ${e.paiement === 'Payé' ? 'pill-green' : 'pill-amber'}">${escapeHtml(e.paiement || 'Non payé')}</span></td>
         <td>
           <div class="actions-cell">
             <button class="btn btn-ghost action-text-btn" title="Modifier" data-action="edit" data-id="${e.id}">
@@ -898,7 +1095,7 @@
   if(editGroupeSelect){
     tousLesGroupes.forEach(g => {
       const opt = document.createElement('option');
-      opt.value = g; opt.textContent = g;
+      opt.value = g.id; opt.textContent = g.nom;
       editGroupeSelect.appendChild(opt);
     });
   }
@@ -912,7 +1109,7 @@
     document.getElementById('editNom').value = eleve.nom;
     document.getElementById('editPrenom').value = eleve.prenom;
     document.getElementById('editTel').value = eleve.tel || '';
-    editGroupeSelect.value = eleve.groupe;
+    editGroupeSelect.value = eleve.idGroupe;
     document.getElementById('editDateEntree').value = eleve.dateEntree || '';
     document.getElementById('editStatutPaiement').value = eleve.paiement || 'Payé';
 
@@ -942,19 +1139,50 @@
     }
 
     const eleve = eleves.find(e => e.id === currentTargetId);
-    if(eleve){
-      eleve.nom = document.getElementById('editNom').value.trim();
-      eleve.prenom = document.getElementById('editPrenom').value.trim();
-      eleve.tel = document.getElementById('editTel').value.trim();
-      eleve.groupe = editGroupeSelect.value;
-      eleve.filiere = filiereFromGroupe(eleve.groupe);
-      eleve.dateEntree = document.getElementById('editDateEntree').value;
-      eleve.paiement = document.getElementById('editStatutPaiement').value;
+    if(!eleve) { closeEditModal(); return; }
 
-      showToast(`Informations mises à jour pour ${eleve.prenom} ${eleve.nom}`);
-      render();
-    }
-    closeEditModal();
+    const nom = document.getElementById('editNom').value.trim();
+    const prenom = document.getElementById('editPrenom').value.trim();
+    const tel = document.getElementById('editTel').value.trim();
+    const groupeId = editGroupeSelect.value; // id_groupe (en string)
+    const groupeNom = editGroupeSelect.options[editGroupeSelect.selectedIndex].text;
+    const dateEntree = document.getElementById('editDateEntree').value;
+    const paiement = document.getElementById('editStatutPaiement').value;
+
+    const confirmBtn = document.getElementById('confirmEditBtn');
+    if(confirmBtn) confirmBtn.disabled = true;
+
+    fetch('eleve.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        ajax_action: 'edit', id: currentTargetId,
+        nom, prenom, tel, groupe: groupeId, dateEntree, paiement
+      })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if(data.success){
+        eleve.nom = nom;
+        eleve.prenom = prenom;
+        eleve.tel = tel;
+        eleve.idGroupe = Number(groupeId);
+        eleve.groupe = data.groupe || groupeNom;
+        eleve.filiere = data.filiere || filiereFromGroupeId(eleve.idGroupe);
+        eleve.dateEntree = dateEntree;
+        eleve.paiement = paiement;
+
+        showToast(`Informations mises à jour pour ${eleve.prenom} ${eleve.nom}`);
+        render();
+      } else {
+        showToast(data.message || "Erreur lors de la modification.");
+      }
+    })
+    .catch(() => showToast("Erreur réseau. Réessayez."))
+    .finally(() => {
+      if(confirmBtn) confirmBtn.disabled = false;
+      closeEditModal();
+    });
   });
 
   /* ---------- Modals: supprimer ---------- */
@@ -979,12 +1207,32 @@
 
   document.getElementById('confirmDeleteBtn').addEventListener('click', () => {
     const eleve = eleves.find(e => e.id === currentTargetId);
-    if(eleve){
-      eleves = eleves.filter(e => e.id !== currentTargetId);
-      showToast(`${eleve.prenom} ${eleve.nom} a été supprimé(e)`);
-      render();
-    }
-    closeDeleteModal();
+    if(!eleve) { closeDeleteModal(); return; }
+
+    const idASupprimer = currentTargetId;
+    const confirmBtn = document.getElementById('confirmDeleteBtn');
+    confirmBtn.disabled = true;
+
+    fetch('eleve.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ ajax_action: 'delete', id: idASupprimer })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if(data.success){
+        eleves = eleves.filter(e => e.id !== idASupprimer);
+        showToast(`${eleve.prenom} ${eleve.nom} a été supprimé(e)`);
+        render();
+      } else {
+        showToast(data.message || "Erreur lors de la suppression.");
+      }
+    })
+    .catch(() => showToast("Erreur réseau. Réessayez."))
+    .finally(() => {
+      confirmBtn.disabled = false;
+      closeDeleteModal();
+    });
   });
 
   /* ---------- Row actions ---------- */
@@ -1008,7 +1256,7 @@
   if(addGroupeSelect){
     tousLesGroupes.forEach(g => {
       const opt = document.createElement('option');
-      opt.value = g; opt.textContent = g;
+      opt.value = g.id; opt.textContent = g.nom;
       addGroupeSelect.appendChild(opt);
     });
   }
@@ -1042,9 +1290,9 @@
 
   addModal.addEventListener('click', (e) => { if(e.target === addModal) closeAddModal(); });
 
-  function filiereFromGroupe(groupe){
+  function filiereFromGroupeId(idGroupe){
     for(const [fil, groupes] of Object.entries(groupesParFiliere)){
-      if(groupes.includes(groupe)) return fil;
+      if(groupes.some(g => g.id === idGroupe)) return fil;
     }
     return '';
   }
@@ -1060,24 +1308,47 @@
     const nom = document.getElementById('addNom').value.trim();
     const prenom = document.getElementById('addPrenom').value.trim();
     const tel = document.getElementById('addTel').value.trim();
-    const groupe = addGroupeSelect.value;
+    const groupeId = addGroupeSelect.value; // id_groupe (en string)
+    const groupeNom = addGroupeSelect.options[addGroupeSelect.selectedIndex].text;
     const dateEntree = document.getElementById('addDateEntree').value;
     const paiement = document.getElementById('addStatutPaiement').value;
 
-    const nouvelEleve = {
-      id: nextId++,
-      nom, prenom, tel,
-      filiere: filiereFromGroupe(groupe),
-      groupe,
-      statut: "Actif",
-      dateEntree,
-      paiement
-    };
+    const confirmBtn = document.getElementById('confirmAddBtn');
+    if(confirmBtn) confirmBtn.disabled = true;
 
-    eleves.unshift(nouvelEleve);
-    showToast(`${prenom} ${nom} a été ajouté(e)`);
-    closeAddModal();
-    render();
+    fetch('eleve.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        ajax_action: 'add', nom, prenom, tel, groupe: groupeId, dateEntree, paiement
+      })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if(data.success){
+        const idGroupeNum = Number(groupeId);
+        const nouvelEleve = {
+          id: data.id,
+          nom, prenom, tel,
+          filiere: data.filiere || filiereFromGroupeId(idGroupeNum),
+          groupe: data.groupe || groupeNom,
+          idGroupe: idGroupeNum,
+          statut: "Actif",
+          dateEntree,
+          paiement
+        };
+        eleves.unshift(nouvelEleve);
+        showToast(`${prenom} ${nom} a été ajouté(e)`);
+        closeAddModal();
+        render();
+      } else {
+        showToast(data.message || "Erreur lors de l'ajout.");
+      }
+    })
+    .catch(() => showToast("Erreur réseau. Réessayez."))
+    .finally(() => {
+      if(confirmBtn) confirmBtn.disabled = false;
+    });
   });
 
   /* Escape key closes modals */

@@ -5,6 +5,7 @@
    document.addEventListener('DOMContentLoaded', () => {
     initMobileSidebar();
     initCalendarDropdown();
+    initSearchButton();
     initNavSelection();
     initModalSystem();
     initLogout();
@@ -15,8 +16,11 @@
     const sidebar = document.getElementById('sidebar');
     const overlay = document.getElementById('sidebarOverlay');
     const openBtn = document.getElementById('mobileMenuBtn');
+    const toggleBtn = document.getElementById('sidebarToggle');
   
     if (!sidebar || !overlay || !openBtn) return;
+  
+    const isMobile = () => window.innerWidth <= 860;
   
     const openSidebar = () => {
       sidebar.classList.add('is-open');
@@ -29,20 +33,38 @@
       overlay.classList.remove('is-visible');
       document.body.style.overflow = '';
     };
+
+    // Mobile menu button: opens/closes the sidebar with the overlay
+    const toggleMobileSidebar = () => {
+      sidebar.classList.contains('is-open') ? closeSidebar() : openSidebar();
+    };
+
+    // Sidebar toggle button: collapses/expands on desktop, closes on mobile
+    const toggleDesktopSidebar = () => {
+      sidebar.classList.toggle('is-collapsed');
+    };
   
-    openBtn.addEventListener('click', openSidebar);
+    openBtn.addEventListener('click', toggleMobileSidebar);
+
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', () => {
+        if (isMobile()) closeSidebar();
+        else toggleDesktopSidebar();
+      });
+    }
+
     overlay.addEventListener('click', closeSidebar);
   
     // Close sidebar automatically when a nav link is tapped on mobile
     sidebar.querySelectorAll('.nav-link').forEach((link) => {
       link.addEventListener('click', () => {
-        if (window.innerWidth <= 860) closeSidebar();
+        if (isMobile()) closeSidebar();
       });
     });
   
     // Close on resize back to desktop
     window.addEventListener('resize', () => {
-      if (window.innerWidth > 860) closeSidebar();
+      if (!isMobile()) closeSidebar();
     });
   }
   
@@ -59,7 +81,7 @@
     const dateEl = document.getElementById('todayDate');
     const dayEl = document.getElementById('todayDay');
   
-    if (!dropdown || !trigger || !popover || !grid) return;
+    if (!dropdown || !trigger || !popover || !grid || !monthLabel || !prevBtn || !nextBtn || !todayBtn || !dateEl || !dayEl) return;
   
     const MONTHS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
       'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
@@ -191,15 +213,36 @@
     updatePillText(selectedDate);
   }
   
+
+  /* ---- Search button ---- */
+  function initSearchButton() {
+    const searchBtn = document.getElementById('searchBtn');
+    if (!searchBtn) return;
+
+    searchBtn.addEventListener('click', () => {
+      const query = window.prompt('Rechercher un élève, un groupe ou une séance :');
+      if (!query || !query.trim()) return;
+
+      // Par défaut, on cherche dans la page élèves.
+      window.location.href = 'eleve.php?search=' + encodeURIComponent(query.trim());
+    });
+  }
+  
   /* ---- Sidebar active state on click ---- */
   function initNavSelection() {
     const items = document.querySelectorAll('.nav-item');
+    const currentFile = window.location.pathname.split('/').pop() || 'dashboard.php';
+
     items.forEach((item) => {
-      item.querySelector('.nav-link')?.addEventListener('click', (e) => {
-        e.preventDefault();
+      const link = item.querySelector('.nav-link');
+      if (!link) return;
+
+      // IMPORTANT: on ne fait PAS preventDefault(), sinon les liens du menu ne marchent plus.
+      const hrefFile = (link.getAttribute('href') || '').split('/').pop();
+      if (hrefFile === currentFile) {
         items.forEach((i) => i.classList.remove('nav-item--active'));
         item.classList.add('nav-item--active');
-      });
+      }
     });
   }
   
@@ -207,11 +250,18 @@
   function initLogout() {
     const btn = document.querySelector('.logout-btn');
     if (!btn) return;
-    btn.addEventListener('click', () => {
+
+    btn.addEventListener('click', (e) => {
       const confirmed = window.confirm('Voulez-vous vraiment vous déconnecter ?');
-      if (confirmed) {
-        console.log('Déconnexion en cours…');
-        // window.location.href = 'login.html';
+
+      if (!confirmed) {
+        e.preventDefault();
+        return;
+      }
+
+      // Si le bouton n'a pas déjà onclick ou un lien parent, redirection par défaut.
+      if (!btn.getAttribute('onclick')) {
+        window.location.href = 'logout.php';
       }
     });
   }
