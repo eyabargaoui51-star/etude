@@ -8,6 +8,47 @@ if (!$conn->ping()) {
    PHP + CSS + JS dans un seul fichier
    ========================================================================== */
 
+/* --------------------------------------------------------------------
+   Endpoint AJAX : mise à jour manuelle du statut d'une séance dépassée.
+   Déclenché uniquement par un clic du professeur sur l'un des deux
+   boutons de l'alerte de rappel ("Terminée" / "Annulée"). Le statut
+   n'est JAMAIS modifié automatiquement ailleurs dans le code : c'est
+   toujours le professeur qui décide.
+   -------------------------------------------------------------------- */
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_action']) && $_POST['ajax_action'] === 'update_seance_statut') {
+    header('Content-Type: application/json; charset=UTF-8');
+    $response = ['success' => false];
+
+    $id     = (int)($_POST['id'] ?? 0);
+    $statut = $_POST['statut'] ?? '';
+    // Seuls ces deux statuts peuvent être choisis depuis l'alerte de rappel :
+    // "À venir" n'est volontairement pas autorisé ici.
+    $statutsAutorises = ['Terminée', 'Annulée'];
+
+    if ($id <= 0 || !in_array($statut, $statutsAutorises, true)) {
+        $response['message'] = "Requête invalide.";
+    } else {
+        $stmt = mysqli_prepare($conn, "UPDATE seance SET statut = ? WHERE id_seance = ?");
+        if (!$stmt) {
+            $response['message'] = "Erreur de préparation de la requête : " . mysqli_error($conn);
+        } else {
+            mysqli_stmt_bind_param($stmt, "si", $statut, $id);
+            if (mysqli_stmt_execute($stmt)) {
+                $response['success'] = true;
+                $response['id']      = $id;
+                $response['statut']  = $statut;
+            } else {
+                $response['message'] = "Erreur lors de la mise à jour : " . mysqli_stmt_error($stmt);
+            }
+            mysqli_stmt_close($stmt);
+        }
+    }
+
+    echo json_encode($response, JSON_UNESCAPED_UNICODE);
+    mysqli_close($conn);
+    exit;
+}
+
 function fetch_count(mysqli $conn, string $sql): int {
     $res = mysqli_query($conn, $sql);
     if (!$res) {
@@ -107,6 +148,31 @@ function fetch_all_prepared(mysqli $conn, string $sql): array {
 
 $filieres_list = fetch_all_prepared($conn, "SELECT id_filiere, nom_filiere FROM filiere ORDER BY nom_filiere ASC");
 $groupes_list  = fetch_all_prepared($conn, "SELECT id_groupe, nom_groupe, id_filiere FROM groupe ORDER BY nom_groupe ASC");
+
+/* --------------------------------------------------------------------
+   Système de rappel intelligent : séances dont la date/heure de fin
+   est déjà passée mais dont le statut est resté "À venir". Le statut
+   n'est jamais changé ici automatiquement — cette requête sert
+   uniquement à afficher une alerte demandant au professeur de
+   confirmer manuellement (Terminée / Annulée).
+   -------------------------------------------------------------------- */
+$sql_seances_a_confirmer = "SELECT s.id_seance, s.date_seance, s.heure_debut, s.heure_fin, g.nom_groupe
+                            FROM seance s
+                            INNER JOIN groupe g ON s.id_groupe = g.id_groupe
+                            WHERE s.statut = 'À venir'
+                              AND TIMESTAMP(s.date_seance, s.heure_fin) < NOW()
+                            ORDER BY s.date_seance ASC, s.heure_fin ASC";
+$stmt_a_confirmer = mysqli_prepare($conn, $sql_seances_a_confirmer);
+if (!$stmt_a_confirmer) {
+    die("Erreur de préparation de la requête : " . mysqli_error($conn));
+}
+mysqli_stmt_execute($stmt_a_confirmer);
+$res_seances_a_confirmer = mysqli_stmt_get_result($stmt_a_confirmer);
+$seances_a_confirmer = [];
+while ($row = mysqli_fetch_assoc($res_seances_a_confirmer)) {
+    $seances_a_confirmer[] = $row;
+}
+mysqli_stmt_close($stmt_a_confirmer);
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -414,6 +480,38 @@ $groupes_list  = fetch_all_prepared($conn, "SELECT id_groupe, nom_groupe, id_fil
     </header>
 
     <main class="content">
+      <?php if (!empty($seances_a_confirmer)): ?>
+      <section class="seance-reminder-stack" id="seanceReminderStack" aria-live="polite">
+        <?php foreach ($seances_a_confirmer as $sc):
+              $dateLabel  = date('d/m/Y', strtotime($sc['date_seance']));
+              $heureLabel = substr($sc['heure_debut'], 0, 5);
+        ?>
+        <div class="seance-reminder-alert" data-id="<?php echo (int)$sc['id_seance']; ?>"
+             style="display:flex;align-items:flex-start;gap:14px;background:#fff6ec;border:1px solid var(--orange);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px 18px;margin-bottom:14px;">
+          <span style="font-size:22px;line-height:1;" aria-hidden="true">⚠️</span>
+          <div style="flex:1;min-width:0;">
+            <p style="margin:0 0 4px;color:var(--text);font-weight:600;">
+              La séance du groupe <?php echo htmlspecialchars($sc['nom_groupe'], ENT_QUOTES, 'UTF-8'); ?>,
+              prévue le <?php echo $dateLabel; ?> à <?php echo $heureLabel; ?>,
+              est terminée mais son statut est toujours « À venir ».
+            </p>
+            <p style="margin:0 0 12px;color:var(--muted);font-size:14px;">Veuillez mettre à jour son statut.</p>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+              <button type="button" class="seance-reminder-btn" data-statut="Terminée"
+                      style="border:none;cursor:pointer;padding:8px 14px;border-radius:10px;font-weight:600;background:var(--green);color:#fff;">
+                ✅ Marquer comme Terminée
+              </button>
+              <button type="button" class="seance-reminder-btn" data-statut="Annulée"
+                      style="border:none;cursor:pointer;padding:8px 14px;border-radius:10px;font-weight:600;background:var(--pink);color:#fff;">
+                ❌ Marquer comme Annulée
+              </button>
+            </div>
+          </div>
+        </div>
+        <?php endforeach; ?>
+      </section>
+      <?php endif; ?>
+
       <section class="banner">
         <div class="banner__text">
           <h2>Bonjour Professeur ! <span class="wave">👋</span></h2>
@@ -542,6 +640,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initNavSelection();
   initModalSystem();
   initLogout();
+  initSeanceReminders();
 });
 
 function initMobileSidebar() {
@@ -665,19 +764,105 @@ function initLogout() {
   });
 }
 
+/* --------------------------------------------------------------------
+   Système de rappel intelligent — séances dépassées toujours "À venir".
+   Le statut n'est JAMAIS changé tout seul : cette fonction se contente
+   de câbler les deux boutons ("Terminée" / "Annulée") de chaque alerte
+   sur l'endpoint AJAX update_seance_statut. C'est le professeur qui
+   décide, en cliquant, ce que devient la séance.
+   -------------------------------------------------------------------- */
+function initSeanceReminders() {
+  const stack = document.getElementById('seanceReminderStack');
+  if (!stack) return;
+
+  stack.addEventListener('click', async (e) => {
+    const btn = e.target.closest('.seance-reminder-btn');
+    if (!btn) return;
+
+    const alertEl = btn.closest('.seance-reminder-alert');
+    const id = alertEl?.getAttribute('data-id');
+    const statut = btn.getAttribute('data-statut');
+    if (!id || !statut) return;
+
+    const allButtons = alertEl.querySelectorAll('.seance-reminder-btn');
+    allButtons.forEach((b) => (b.disabled = true));
+    const originalLabel = btn.textContent;
+    btn.textContent = 'Mise à jour...';
+
+    try {
+      const result = await postAction('dashboard.php', {
+        ajax_action: 'update_seance_statut',
+        id,
+        statut,
+      });
+
+      if (result && result.success) {
+        // Le statut n'est plus "À venir" : l'alerte n'a plus lieu d'être,
+        // elle disparaît donc immédiatement (et ne reviendra plus au
+        // prochain chargement puisque la base est à jour).
+        alertEl.style.transition = 'opacity .2s ease';
+        alertEl.style.opacity = '0';
+        setTimeout(() => {
+          alertEl.remove();
+          if (!stack.querySelector('.seance-reminder-alert')) stack.remove();
+        }, 200);
+        showToast(statut === 'Terminée' ? '✅ Séance marquée comme Terminée.' : '❌ Séance marquée comme Annulée.');
+      } else {
+        showToast((result && result.message) || "❌ Une erreur est survenue.", 'error');
+        allButtons.forEach((b) => (b.disabled = false));
+        btn.textContent = originalLabel;
+      }
+    } catch (err) {
+      showToast('❌ Erreur réseau, veuillez réessayer.', 'error');
+      allButtons.forEach((b) => (b.disabled = false));
+      btn.textContent = originalLabel;
+    }
+  });
+}
+
 const FILIERES = <?php echo json_encode($filieres_list, JSON_UNESCAPED_UNICODE); ?>;
 const GROUPES = <?php echo json_encode($groupes_list, JSON_UNESCAPED_UNICODE); ?>;
 const filiereOptions = () => FILIERES.map((f) => ({ value: String(f.id_filiere), label: f.nom_filiere }));
 const groupeOptions = () => GROUPES.map((g) => ({ value: String(g.id_groupe), label: g.nom_groupe }));
 
 async function postAction(endpoint, data) {
-  const res = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams(data).toString(),
-  });
-  if (!res.ok) throw new Error('network');
-  return res.json();
+  let res;
+  try {
+    res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams(data).toString(),
+    });
+  } catch (networkErr) {
+    // Le fetch lui-même a échoué (pas de connexion, CORS, serveur injoignable...)
+    const err = new Error('network');
+    err.kind = 'network';
+    throw err;
+  }
+
+  // On lit toujours le corps en texte brut d'abord : si le PHP a renvoyé
+  // un warning/notice/espace en plus du JSON, on veut pouvoir le
+  // diagnostiquer au lieu de mélanger ça avec une vraie erreur réseau.
+  const rawText = await res.text();
+
+  let payload;
+  try {
+    payload = JSON.parse(rawText);
+  } catch (parseErr) {
+    console.error(`Réponse non-JSON reçue de ${endpoint} (HTTP ${res.status}) :`, rawText);
+    const err = new Error('invalid-json');
+    err.kind = 'invalid-json';
+    throw err;
+  }
+
+  if (!res.ok) {
+    // Le serveur a répondu avec un code d'erreur HTTP mais un JSON exploitable
+    // (ex: 500 avec message d'erreur) : on privilégie ce message plutôt
+    // qu'un "erreur réseau" générique trompeur.
+    return payload;
+  }
+
+  return payload;
 }
 
 /* --------------------------------------------------------------------
@@ -740,6 +925,27 @@ function initAddStudentCascade() {
         showToast('❌ Impossible de charger la liste des groupes.', 'error');
       });
   });
+
+  // Affichage conditionnel du champ "Montant payé" selon le statut de paiement :
+  // visible et obligatoire uniquement si Statut = "Payé".
+  const statutSelect = document.getElementById('field-statut_paiement');
+  const montantInput = document.getElementById('field-montant_paye');
+  if (statutSelect && montantInput) {
+    const montantWrap = montantInput.closest('.modal__field');
+    function toggleMontantPaye() {
+      const estPaye = statutSelect.value === 'Payé';
+      montantWrap.hidden = !estPaye;
+      if (estPaye) {
+        montantInput.setAttribute('required', 'required');
+      } else {
+        montantInput.removeAttribute('required');
+        montantInput.value = '';
+        montantWrap.classList.remove('modal__field--invalid');
+      }
+    }
+    toggleMontantPaye();
+    statutSelect.addEventListener('change', toggleMontantPaye);
+  }
 }
 
 function initModalSystem() {
@@ -774,8 +980,14 @@ function initModalSystem() {
             { value: 'En attente', label: 'En attente' },
             { value: 'Payé', label: 'Payé' },
           ] },
+        { name: 'montant_paye', label: 'Montant payé (DT)', type: 'number', required: false, placeholder: 'ex: 50' },
       ],
-      onSubmit: (data) => postAction('add_eleve.php', data),
+      onSubmit: (data) => {
+        if (data.statut_paiement === 'Payé' && (!data.montant_paye || parseFloat(data.montant_paye) <= 0)) {
+          return { success: false, message: 'Veuillez saisir le montant payé.' };
+        }
+        return postAction('add_eleve.php', data);
+      },
       postRender: initAddStudentCascade,
     },
     createGroup: {
@@ -889,7 +1101,16 @@ function initModalSystem() {
         showToast((result && result.message) || "❌ Une erreur est survenue.", 'error');
       }
     } catch (err) {
-      showToast('❌ Erreur réseau, veuillez réessayer.', 'error');
+      if (err && err.kind === 'invalid-json') {
+        // L'opération a très probablement réussi côté serveur (l'INSERT a eu lieu),
+        // mais la réponse PHP contenait du texte parasite avant/après le JSON
+        // (warning, notice, BOM, espace...). On le signale clairement au lieu
+        // d'afficher "erreur réseau", qui est trompeur ici.
+        showToast('⚠️ Opération probablement effectuée, mais réponse serveur invalide. Vérifiez la liste puis contactez le support si besoin.', 'error');
+        if (currentAction.reload !== false) setTimeout(() => window.location.reload(), 1200);
+      } else {
+        showToast('❌ Erreur réseau, veuillez réessayer.', 'error');
+      }
     } finally {
       submitBtn.disabled = false; submitBtn.textContent = originalLabel;
     }

@@ -23,7 +23,6 @@ $iconMap = [
 ];
 
 // ---- Mois / année actuels (pour le calcul du statut de paiement) ----
-$moisFr = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 $moisActuelNum  = (int)date('n');           // 1 à 12
 $anneeActuelle  = (int)date('Y');
 
@@ -96,7 +95,7 @@ while ($row = $resGroupes->fetch_assoc()) {
 
 /* ---------- 3. Tous les paiements (utilisés pour déterminer payé / en attente / en retard) ---------- */
 $paiementsParEleve = []; // id_eleve => tableau de paiements
-$resPaie = $conn->query("SELECT id_eleve, mois, annee, statut FROM paiement");
+$resPaie = $conn->query("SELECT id_eleve, date_paiement, statut FROM paiement");
 while ($row = $resPaie->fetch_assoc()) {
     $paiementsParEleve[$row['id_eleve']][] = $row;
 }
@@ -106,14 +105,10 @@ $resEleves = $conn->query("SELECT id_eleve, nom, prenom, telephone, id_groupe FR
 
 /* ---------- 5. Fonctions utilitaires ---------- */
 
-// Convertit un nom de mois français en numéro (1-12)
-function moisEnNumero($nomMois, $moisFr) {
-    $idx = array_search($nomMois, $moisFr);
-    return $idx === false ? 0 : $idx + 1;
-}
-
-// Détermine le statut affiché (paye / attente / retard) pour un élève donné
-function determinerStatutPaiement($idEleve, $paiementsParEleve, $moisFr, $moisActuelNum, $anneeActuelle) {
+// Détermine le statut affiché (paye / attente / retard) pour un élève donné,
+// à partir de la colonne date_paiement (type DATE, ex: 2026-07-13) de chaque
+// ligne de paiement associée à cet élève.
+function determinerStatutPaiement($idEleve, $paiementsParEleve, $moisActuelNum, $anneeActuelle) {
     if (!isset($paiementsParEleve[$idEleve])) {
         return 'attente'; // aucun paiement enregistré pour cet élève
     }
@@ -122,8 +117,15 @@ function determinerStatutPaiement($idEleve, $paiementsParEleve, $moisFr, $moisAc
     $enRetard = false;
 
     foreach ($paiementsParEleve[$idEleve] as $p) {
-        $moisNum  = moisEnNumero($p['mois'], $moisFr);
-        $anneeNum = (int)$p['annee'];
+        if (empty($p['date_paiement'])) {
+            continue; // pas de date renseignée pour cette ligne, on l'ignore
+        }
+        $timestamp = strtotime($p['date_paiement']);
+        if ($timestamp === false) {
+            continue; // date invalide/non parsable, on l'ignore
+        }
+        $moisNum  = (int)date('n', $timestamp);
+        $anneeNum = (int)date('Y', $timestamp);
 
         $estMoisCourant = ($moisNum === $moisActuelNum && $anneeNum === $anneeActuelle);
         $estAnterieur   = ($anneeNum < $anneeActuelle) || ($anneeNum === $anneeActuelle && $moisNum < $moisActuelNum);
@@ -182,7 +184,7 @@ while ($eleve = $resEleves->fetch_assoc()) {
 
     foreach ($FILIERES as $key => &$f) {
         if ($f['_id'] == $idFiliere) {
-            $statut = determinerStatutPaiement($eleve['id_eleve'], $paiementsParEleve, $moisFr, $moisActuelNum, $anneeActuelle);
+            $statut = determinerStatutPaiement($eleve['id_eleve'], $paiementsParEleve, $moisActuelNum, $anneeActuelle);
             $f['students'][] = [
                 'name'   => trim($eleve['prenom'] . ' ' . $eleve['nom']),
                 'phone'  => $eleve['telephone'] ?: '—',

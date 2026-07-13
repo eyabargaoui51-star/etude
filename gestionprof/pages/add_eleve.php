@@ -1,11 +1,6 @@
 <?php
 require_once("../config/database.php");
-header('Content-Type: application/json; charset=utf-8');
-
-function respond(bool $success, string $message): void {
-    echo json_encode(['success' => $success, 'message' => $message], JSON_UNESCAPED_UNICODE);
-    exit;
-}
+require_once("../config/api_response.php"); // définit respond(), bufferise la sortie, capture toute erreur PHP
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     respond(false, 'Méthode non autorisée.');
@@ -18,6 +13,7 @@ $date_inscription = trim($_POST['date_inscription'] ?? '');
 $id_filiere       = isset($_POST['id_filiere']) ? (int)$_POST['id_filiere'] : 0;
 $id_groupe        = isset($_POST['id_groupe']) ? (int)$_POST['id_groupe'] : 0;
 $statut_paiement  = trim($_POST['statut_paiement'] ?? '');
+$montant_paye_raw = trim($_POST['montant_paye'] ?? '');
 
 if ($nom === '' || $prenom === '' || $telephone === '' || $date_inscription === '' || $id_groupe <= 0) {
     respond(false, 'Veuillez remplir tous les champs obligatoires.');
@@ -31,6 +27,13 @@ if (!$d || $d->format('Y-m-d') !== $date_inscription) {
 $statuts_valides = ['En attente', 'Payé'];
 if (!in_array($statut_paiement, $statuts_valides, true)) {
     respond(false, 'Statut de paiement invalide.');
+}
+
+// Le montant payé n'est exigé (et pris en compte) que si le statut est "Payé".
+if ($statut_paiement === 'Payé') {
+    if ($montant_paye_raw === '' || !is_numeric($montant_paye_raw) || (float)$montant_paye_raw <= 0) {
+        respond(false, 'Veuillez saisir le montant payé.');
+    }
 }
 
 // Vérifie que le groupe choisi appartient bien à la filière sélectionnée
@@ -67,24 +70,32 @@ try {
     mysqli_stmt_close($stmt);
 
     // Création du paiement associé avec le statut choisi.
-    // NB: montant_a_payer est initialisé à 0 par défaut ; à adapter si un
-    // tarif est associé au groupe/à la filière dans votre schéma.
-    $montant_a_payer = 0;
+    // - Si "Payé"      : montant_a_payer = montant réellement saisi, date_paiement = maintenant (NOW()).
+    // - Si "En attente" / autre : montant_a_payer = 0, date_paiement = NULL (pas encore payé).
+    if ($statut_paiement === 'Payé') {
+        $montant_a_payer = (float)$montant_paye_raw;
+        $date_paiement   = date('Y-m-d H:i:s'); // équivalent de NOW()
+    } else {
+        $montant_a_payer = 0;
+        $date_paiement   = null;
+    }
+
     $stmtPaiement = mysqli_prepare(
         $conn,
-        "INSERT INTO paiement (id_eleve, statut, montant_a_payer) VALUES (?, ?, ?)"
+        "INSERT INTO paiement (id_eleve, statut, montant_a_payer, date_paiement) VALUES (?, ?, ?, ?)"
     );
     if (!$stmtPaiement) {
         respond(false, 'Erreur de préparation de la requête : ' . mysqli_error($conn));
     }
 
-    mysqli_stmt_bind_param($stmtPaiement, 'isd', $id_eleve, $statut_paiement, $montant_a_payer);
+    mysqli_stmt_bind_param($stmtPaiement, 'isds', $id_eleve, $statut_paiement, $montant_a_payer, $date_paiement);
     mysqli_stmt_execute($stmtPaiement);
     mysqli_stmt_close($stmtPaiement);
 
     mysqli_commit($conn);
     respond(true, "✅ {$prenom} {$nom} a été ajouté(e) avec succès.");
-} catch (mysqli_sql_exception $e) {
+} catch (\Throwable $e) {
     mysqli_rollback($conn);
+    error_log('add_eleve.php: ' . $e->getMessage());
     respond(false, "Erreur lors de l'ajout de l'élève : " . $e->getMessage());
 }

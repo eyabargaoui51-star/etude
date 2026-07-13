@@ -1,11 +1,6 @@
 <?php
 require_once("../config/database.php");
-header('Content-Type: application/json; charset=utf-8');
-
-function respond(bool $success, string $message): void {
-    echo json_encode(['success' => $success, 'message' => $message], JSON_UNESCAPED_UNICODE);
-    exit;
-}
+require_once("../config/api_response.php"); // définit respond(), bufferise la sortie, capture toute erreur PHP
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     respond(false, 'Méthode non autorisée.');
@@ -38,6 +33,7 @@ try {
     mysqli_stmt_execute($stmt);
     mysqli_stmt_close($stmt);
     respond(true, '✅ Séance planifiée avec succès.');
-} catch (mysqli_sql_exception $e) {
+} catch (\Throwable $e) {
+    error_log('add_seance.php: ' . $e->getMessage());
     respond(false, 'Erreur lors de la planification de la séance : ' . $e->getMessage());
 }

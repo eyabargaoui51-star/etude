@@ -10,11 +10,6 @@
 
 require_once '../config/database.php';
 
-// ---- Mois / année actuels (utilisés pour le statut de paiement affiché) ----
-$moisFr = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
-$moisActuel    = $moisFr[(int)date('n') - 1];
-$anneeActuelle = (int)date('Y');
-
 /* ---------- Chargement des groupes / filières (utilisé partout ci-dessous) ----------
    IMPORTANT : on identifie chaque groupe par son id_groupe (et non par son nom),
    car rien n'empêche en base d'avoir deux groupes portant le même nom dans deux
@@ -38,29 +33,38 @@ while ($row = $resGroupes->fetch_assoc()) {
     $idsGroupesValides[$idGroupe]       = true;
 }
 
-/* ---------- Fonction : crée ou met à jour le paiement du mois en cours ----------
-   Remarque : le formulaire Ajouter/Modifier élève ne demande qu'un statut
+/* ---------- Fonction : crée ou met à jour le paiement de l'élève ----------
+   Remarque : la table `paiement` n'a pas de colonnes `mois` / `annee` (voir
+   gestion_etude.sql) — chaque élève possède une seule ligne dans `paiement`,
+   qui représente son statut de paiement courant (voir aussi paiment.php qui
+   suit la même logique en se basant sur `date_paiement`).
+   Le formulaire Ajouter/Modifier élève ne demande qu'un statut
    ("Payé" / "Non payé"), pas de montant. Le montant à payer se règle sur la
    page Paiements ; ici on utilise 0.00 par défaut si aucune ligne n'existe
-   encore pour ce mois, et on se contente de mettre à jour le statut sinon. */
-function definirStatutPaiement($conn, $idEleve, $statutFront, $moisActuel, $anneeActuelle) {
+   encore pour cet élève, et on se contente de mettre à jour le statut sinon. */
+function definirStatutPaiement($conn, $idEleve, $statutFront) {
     $statutDb = ($statutFront === 'Payé') ? 'Payé' : 'En attente';
 
-    $stmt = $conn->prepare("SELECT id_paiement FROM paiement WHERE id_eleve = ? AND mois = ? AND annee = ? LIMIT 1");
-    $stmt->bind_param("isi", $idEleve, $moisActuel, $anneeActuelle);
+    $stmt = $conn->prepare("SELECT id_paiement FROM paiement WHERE id_eleve = ? LIMIT 1");
+    $stmt->bind_param("i", $idEleve);
     $stmt->execute();
     $existant = $stmt->get_result()->fetch_assoc();
     $stmt->close();
 
     if ($existant) {
-        $stmt = $conn->prepare("UPDATE paiement SET statut = ? WHERE id_paiement = ?");
+        if ($statutDb === 'Payé') {
+            $stmt = $conn->prepare("UPDATE paiement SET statut = ?, date_paiement = NOW() WHERE id_paiement = ?");
+        } else {
+            $stmt = $conn->prepare("UPDATE paiement SET statut = ?, date_paiement = NULL WHERE id_paiement = ?");
+        }
         $stmt->bind_param("si", $statutDb, $existant['id_paiement']);
         $stmt->execute();
         $stmt->close();
     } else {
-        $montantDefaut = 0.00;
-        $stmt = $conn->prepare("INSERT INTO paiement (id_eleve, mois, annee, montant_a_payer, statut) VALUES (?, ?, ?, ?, ?)");
-        $stmt->bind_param("isids", $idEleve, $moisActuel, $anneeActuelle, $montantDefaut, $statutDb);
+        $montantDefaut  = 0.00;
+        $datePaiement   = ($statutDb === 'Payé') ? date('Y-m-d H:i:s') : null;
+        $stmt = $conn->prepare("INSERT INTO paiement (id_eleve, montant_a_payer, statut, date_paiement) VALUES (?, ?, ?, ?)");
+        $stmt->bind_param("idss", $idEleve, $montantDefaut, $statutDb, $datePaiement);
         $stmt->execute();
         $stmt->close();
     }
@@ -92,7 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_action'])) {
             if ($stmt->execute()) {
                 $nouvelId = $stmt->insert_id;
                 $stmt->close();
-                definirStatutPaiement($conn, $nouvelId, $paiement, $moisActuel, $anneeActuelle);
+                definirStatutPaiement($conn, $nouvelId, $paiement);
                 $response['success'] = true;
                 $response['id']      = $nouvelId;
                 $response['filiere'] = $groupeIdToFiliereName[$idGroupe] ?? '';
@@ -119,7 +123,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_action'])) {
             $stmt->bind_param("ssssii", $nom, $prenom, $tel, $dateEntree, $idGroupe, $id);
             if ($stmt->execute()) {
                 $stmt->close();
-                definirStatutPaiement($conn, $id, $paiement, $moisActuel, $anneeActuelle);
+                definirStatutPaiement($conn, $id, $paiement);
                 $response['success'] = true;
                 $response['filiere'] = $groupeIdToFiliereName[$idGroupe] ?? '';
                 $response['groupe']  = $groupeIdToNom[$idGroupe] ?? '';
@@ -155,10 +159,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_action'])) {
    Rendu initial de la page (requête GET normale)
    ============================================================ */
 
-// Paiements du mois en cours, indexés par élève (évite une requête par élève)
+// Statuts de paiement de tous les élèves, indexés par id_eleve (évite une requête par élève)
+// (la table `paiement` n'a pas de colonnes mois/annee : une seule ligne par élève)
 $paiementsMoisCourant = []; // id_eleve => statut
-$stmtP = $conn->prepare("SELECT id_eleve, statut FROM paiement WHERE mois = ? AND annee = ?");
-$stmtP->bind_param("si", $moisActuel, $anneeActuelle);
+$stmtP = $conn->prepare("SELECT id_eleve, statut FROM paiement");
 $stmtP->execute();
 $resP = $stmtP->get_result();
 while ($row = $resP->fetch_assoc()) {
