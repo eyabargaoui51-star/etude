@@ -37,6 +37,16 @@ if ($idGroupe <= 0 || $nomGroupe === '' || $idFiliere <= 0) {
     } elseif (!$filiereExiste) {
         $response['message'] = "Filière introuvable.";
     } else {
+        // Empêche deux groupes portant le même nom dans la même filière (hors lui-même)
+        $checkDoublon = $conn->prepare("SELECT id_groupe FROM groupe WHERE nom_groupe = ? AND id_filiere = ? AND id_groupe <> ? LIMIT 1");
+        $checkDoublon->bind_param("sii", $nomGroupe, $idFiliere, $idGroupe);
+        $checkDoublon->execute();
+        $doublonExiste = $checkDoublon->get_result()->fetch_assoc() !== null;
+        $checkDoublon->close();
+
+        if ($doublonExiste) {
+            $response['message'] = "Un groupe portant ce nom existe déjà dans cette filière.";
+        } else {
         $stmt = $conn->prepare("UPDATE groupe SET nom_groupe = ?, id_filiere = ?, capacite = ? WHERE id_groupe = ?");
         $stmt->bind_param("siii", $nomGroupe, $idFiliere, $capacite, $idGroupe);
 
@@ -51,6 +61,7 @@ if ($idGroupe <= 0 || $nomGroupe === '' || $idFiliere <= 0) {
         }
 
         $stmt->close();
+        }
     }
 }
 

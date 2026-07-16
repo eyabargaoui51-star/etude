@@ -19,6 +19,7 @@
        NOT NULL DEFAULT 'À venir' AFTER `chapitre`;
    ============================================================ */
 
+require_once '../config/auth.php';
 require_once '../config/database.php';
 
 $joursFr = ["Dimanche","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"];
@@ -92,11 +93,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_action'])) {
 
         $typesValides   = ['Cours', 'Révision'];
         $statutsValides = ['À venir', 'Terminée', 'Annulée'];
+        $dateValide     = DateTime::createFromFormat('Y-m-d', $date) !== false && DateTime::createFromFormat('Y-m-d', $date)->format('Y-m-d') === $date;
+        $heuresValides  = preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $heureDebut) && preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $heureFin);
+        $ordreHeuresValide = $heuresValides && ($heureDebut < $heureFin);
 
-        if (!isset($groupeNameToId[$groupeNom]) || !in_array($type, $typesValides, true)
-            || $date === '' || $heureDebut === '' || $heureFin === '' || $sujet === ''
-            || !in_array($statut, $statutsValides, true)) {
-            $response['message'] = "Champs invalides.";
+        if (!isset($groupeNameToId[$groupeNom])) {
+            $response['message'] = "Le groupe est obligatoire.";
+        } elseif ($date === '' || !$dateValide) {
+            $response['message'] = "La date de la séance est obligatoire et doit être valide.";
+        } elseif ($heureDebut === '' || $heureFin === '' || !$heuresValides) {
+            $response['message'] = "Veuillez indiquer une heure de début et une heure de fin valides.";
+        } elseif (!$ordreHeuresValide) {
+            $response['message'] = "L'heure de début doit être antérieure à l'heure de fin.";
+        } elseif (!in_array($type, $typesValides, true) || $sujet === '' || !in_array($statut, $statutsValides, true)) {
+            $response['message'] = "Champs invalides. Vérifiez le type, le chapitre et le statut.";
         } else {
             $idGroupe = $groupeNameToId[$groupeNom];
 
@@ -109,7 +119,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_action'])) {
                     $response['jour']  = nomJourFr($date, $joursFr);
                     $response['duree'] = calculerDuree($heureDebut, $heureFin);
                 } else {
-                    $response['message'] = "Erreur lors de l'ajout : " . $stmt->error;
+                    error_log("Erreur lors de l'ajout d'une séance : " . $stmt->error);
+                    $response['message'] = "Une erreur est survenue lors de l'ajout. Veuillez réessayer plus tard.";
                 }
                 $stmt->close();
             } else {
@@ -123,7 +134,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_action'])) {
                         $response['jour']  = nomJourFr($date, $joursFr);
                         $response['duree'] = calculerDuree($heureDebut, $heureFin);
                     } else {
-                        $response['message'] = "Erreur lors de la modification : " . $stmt->error;
+                        error_log("Erreur lors de la modification d'une séance (id=$id) : " . $stmt->error);
+                        $response['message'] = "Une erreur est survenue lors de la modification. Veuillez réessayer plus tard.";
                     }
                     $stmt->close();
                 }
@@ -137,7 +149,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_action'])) {
             $stmt = $conn->prepare("DELETE FROM seance WHERE id_seance = ?");
             $stmt->bind_param("i", $id);
             $response['success'] = $stmt->execute();
-            if (!$response['success']) $response['message'] = $stmt->error;
+            if (!$response['success']) {
+                error_log("Erreur lors de la suppression d'une séance (id=$id) : " . $stmt->error);
+                $response['message'] = "Une erreur est survenue lors de la suppression. Veuillez réessayer plus tard.";
+            }
             $stmt->close();
         } else {
             $response['message'] = "ID invalide.";
@@ -164,10 +179,9 @@ $sqlSeances = "SELECT s.id_seance, s.date_seance, s.heure_debut, s.heure_fin, s.
 $resSeances = $conn->query($sqlSeances);
 
 if ($resSeances === false) {
+    error_log("Erreur SQL (chargement des séances) : " . $conn->error);
     die(
-        "Erreur SQL : " . $conn->error .
-        "<br><br>Si l'erreur mentionne la colonne <code>statut</code>, exécute d'abord cette requête dans phpMyAdmin :<br>" .
-        "<pre>ALTER TABLE `seance` ADD COLUMN `statut` ENUM('À venir','Terminée','Annulée') NOT NULL DEFAULT 'À venir' AFTER `chapitre`;</pre>"
+        "Une erreur est survenue lors du chargement des séances. Veuillez réessayer plus tard, ou contacter le support si le problème persiste."
     );
 }
 
@@ -576,6 +590,49 @@ $conn->close();
   @media (max-width: 560px){
     .stats{ grid-template-columns:1fr; }
     .form-row{ grid-template-columns:1fr; }
+  }
+
+  /* ======================================================
+     RESPONSIVE — ajustements supplémentaires mobile
+     ====================================================== */
+  /* ======================================================
+     RESPONSIVE — correction des panneaux Notifications / Calendrier
+     Positionnés en "right:0" par rapport à leur bouton, ils
+     débordaient de l'écran sur mobile quand la barre du haut
+     repliait ses icônes vers la gauche. On les fixe désormais par
+     rapport à l'écran avec des marges de sécurité de chaque côté.
+     Le desktop n'est pas touché.
+     ====================================================== */
+  @media (max-width: 900px){
+    .notif-panel, .cal-panel{
+      position: fixed;
+      left: 16px;
+      right: 16px;
+      top: 110px;
+      width: auto;
+      max-width: none;
+      max-height: 70vh;
+      overflow-y: auto;
+    }
+  }
+  @media (max-width: 480px){
+    .notif-panel, .cal-panel{ left: 10px; right: 10px; top: 100px; }
+  }
+  @media (max-width: 700px){
+    .filters{ flex-direction: column; align-items: stretch; }
+    .filter-group.period{ flex-direction: column; align-items: stretch; }
+    .date-sep{ display:none; }
+    .btn-primary{ margin-left: 0; width: 100%; justify-content: center; }
+    .btn-reset{ width: 100%; justify-content: center; }
+    select.dd, .date-input{ width: 100%; }
+    .topbar-right{ flex-wrap: wrap; }
+    .search-box{ max-width: none; flex: 1 1 100%; order: 3; }
+  }
+  @media (max-width: 480px){
+    .stats{ grid-template-columns: 1fr; }
+    .page-title{ font-size: 19px; }
+    .table-footer{ flex-direction: column; align-items: flex-start; }
+    .footer-right{ width: 100%; justify-content: space-between; }
   }
 </style>
 </head>
@@ -1118,6 +1175,12 @@ $conn->close();
       statut: document.getElementById('fStatut').value
     };
 
+    if(!data.groupe){ showToast("Le groupe est obligatoire."); return; }
+    if(!data.date){ showToast("La date de la séance est obligatoire."); return; }
+    if(!data.heureDebut || !data.heureFin){ showToast("Veuillez indiquer une heure de début et une heure de fin."); return; }
+    if(data.heureDebut >= data.heureFin){ showToast("L'heure de début doit être antérieure à l'heure de fin."); return; }
+    if(!data.sujet){ showToast("Le chapitre est obligatoire."); return; }
+
     const submitBtn = this.querySelector('button[type="submit"]');
     if(submitBtn) submitBtn.disabled = true;
 
@@ -1251,17 +1314,31 @@ $conn->close();
     if(except !== calPanel) calPanel.classList.remove('show');
   }
 
+  // Sur mobile, positionne le panneau juste sous la barre du haut plutôt que de
+  // dépendre d'un décalage fixe par rapport au bouton. Desktop non concerné.
+  function positionDropdownMobile(panel){
+    if (window.innerWidth > 900) { panel.style.top = ''; return; }
+    const bar = document.querySelector('.topbar');
+    const rect = bar.getBoundingClientRect();
+    panel.style.top = Math.round(rect.bottom + 10) + 'px';
+  }
+  window.addEventListener('resize', () => {
+    if (notifPanel.classList.contains('show')) positionDropdownMobile(notifPanel);
+    if (calPanel.classList.contains('show')) positionDropdownMobile(calPanel);
+  });
+
   notifBtn.addEventListener('click', (e)=>{
     e.stopPropagation();
     const willShow = !notifPanel.classList.contains('show');
     closeAllDropdowns();
-    if(willShow) notifPanel.classList.add('show');
+    if(willShow){ notifPanel.classList.add('show'); positionDropdownMobile(notifPanel); }
   });
 
   function openCalendar(){
     closeAllDropdowns(calPanel);
     calPanel.classList.add('show');
     renderCalendar();
+    positionDropdownMobile(calPanel);
   }
   calBtn.addEventListener('click', (e)=>{
     e.stopPropagation();

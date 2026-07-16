@@ -13,8 +13,22 @@ $nom_groupe = trim($_POST['nom_groupe'] ?? '');
 $id_filiere = isset($_POST['id_filiere']) ? (int)$_POST['id_filiere'] : 0;
 $capacite   = isset($_POST['capacite']) && $_POST['capacite'] !== '' ? (int)$_POST['capacite'] : null;
 
-if ($nom_groupe === '' || $id_filiere <= 0) {
-    respond(false, 'Veuillez remplir tous les champs obligatoires.');
+if ($nom_groupe === '') {
+    respond(false, 'Le nom du groupe est obligatoire.');
+}
+if ($id_filiere <= 0) {
+    respond(false, 'La filière est obligatoire.');
+}
+
+// Empêche deux groupes portant le même nom dans la même filière.
+$checkDoublon = mysqli_prepare($conn, "SELECT id_groupe FROM groupe WHERE nom_groupe = ? AND id_filiere = ? LIMIT 1");
+mysqli_stmt_bind_param($checkDoublon, 'si', $nom_groupe, $id_filiere);
+mysqli_stmt_execute($checkDoublon);
+mysqli_stmt_store_result($checkDoublon);
+$doublonExiste = mysqli_stmt_num_rows($checkDoublon) > 0;
+mysqli_stmt_close($checkDoublon);
+if ($doublonExiste) {
+    respond(false, 'Un groupe portant ce nom existe déjà dans cette filière.');
 }
 
 try {

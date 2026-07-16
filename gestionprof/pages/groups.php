@@ -11,6 +11,7 @@
    ============================================================ */
 
  
+   require_once("../config/auth.php");
    require_once("../config/database.php");
    
 
@@ -46,9 +47,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_action']) && $_P
     $capaciteRaw = trim($_POST['capacite'] ?? '');
     $capacite    = ($capaciteRaw === '') ? null : (int)$capaciteRaw;
 
-    if ($nomGroupe === '' || !isset($filieres[$idFiliere])) {
-        $response['message'] = "Champs invalides.";
+    if ($nomGroupe === '') {
+        $response['message'] = "Le nom du groupe est obligatoire.";
+    } elseif (!isset($filieres[$idFiliere])) {
+        $response['message'] = "La filière est obligatoire.";
     } else {
+        // Empêche deux groupes portant le même nom dans la même filière.
+        $checkDoublon = $conn->prepare("SELECT id_groupe FROM groupe WHERE nom_groupe = ? AND id_filiere = ? LIMIT 1");
+        $checkDoublon->bind_param("si", $nomGroupe, $idFiliere);
+        $checkDoublon->execute();
+        $doublonExiste = $checkDoublon->get_result()->fetch_assoc() !== null;
+        $checkDoublon->close();
+
+        if ($doublonExiste) {
+            $response['message'] = "Un groupe portant ce nom existe déjà dans cette filière.";
+        } else {
         // Le site est utilisé par un seul professeur : le nouveau groupe est
         // rattaché au premier enregistrement de la table `professeur`.
         $idProfesseur = 0;
@@ -78,6 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_action']) && $_P
             } else {
                 $response['message'] = "Erreur lors de l'ajout : " . $stmt->error;
             }
+        }
         }
     }
 
@@ -824,6 +838,57 @@ $conn->close();
   .notif-desc{font-size:12.5px;color:var(--text-soft);margin-bottom:4px;line-height:1.4;}
   .notif-time{font-size:11px;color:var(--text-muted);}
   .notif-empty{padding:28px 16px;text-align:center;color:var(--text-muted);font-size:13px;}
+
+  /* ======================================================
+     RESPONSIVE — ajustements supplémentaires mobile
+     (le tableau redevient scrollable horizontalement,
+     conformément au reste du site, au lieu d'empiler les cellules)
+     ====================================================== */
+  @media (max-width: 640px){
+    .table-wrap{ overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    table{ display: table; min-width: 640px; }
+    thead{ display: table-header-group; }
+    tbody{ display: table-row-group; }
+    tr{ display: table-row; }
+    td{ display: table-cell; width: auto; padding: 14px 16px; }
+    tbody tr{ padding: 0; }
+    .topbar-right{ width: 100%; flex-wrap: wrap; }
+    .search-box{ min-width: 0; flex: 1 1 160px; }
+    .table-controls{ flex-direction: column; align-items: stretch; }
+    .table-search, select#groupFilter{ width: 100%; }
+    .modal-box{ max-width: 100%; }
+    .modal-actions{ flex-direction: column-reverse; }
+    .modal-actions .btn-primary, .modal-actions .btn-ghost{ width: 100%; justify-content: center; }
+  }
+  @media (max-width: 480px){
+    .title-block h1{ font-size: 22px; }
+  }
+  @media (max-width: 420px){
+    .filiere-grid{ grid-template-columns: 1fr; }
+  }
+
+  /* ======================================================
+     RESPONSIVE — correction du panneau Notifications
+     Il était positionné en "right:0" par rapport à son bouton ;
+     sur mobile, ce bouton peut se retrouver du côté gauche de
+     l'écran une fois la barre repliée, ce qui faisait déborder
+     le panneau hors de l'écran. On le fixe par rapport à l'écran
+     avec des marges de sécurité. Le desktop n'est pas touché.
+     ====================================================== */
+  @media (max-width: 640px){
+    .notif-dropdown{
+      position: fixed;
+      left: 16px;
+      right: 16px;
+      top: 100px;
+      width: auto;
+      max-width: none;
+      max-height: 70vh;
+    }
+  }
+  @media (max-width: 420px){
+    .notif-dropdown{ left: 10px; right: 10px; top: 90px; }
+  }
 </style>
 </head>
 <body>
@@ -1225,6 +1290,19 @@ cancelAddGroupBtn.addEventListener('click', (e) => { e.preventDefault(); closeAd
 addGroupModal.addEventListener('click', (e) => { if(e.target === addGroupModal) closeAddGroupModal(); });
 document.addEventListener('keydown', (e) => { if(e.key === 'Escape') closeAddGroupModal(); });
 
+// Validation côté client : nom obligatoire, filière obligatoire, pas de doublon
+// dans la même filière (vérifié contre les données déjà chargées en local).
+// excludeId permet d'ignorer le groupe en cours de modification lui-même.
+function validerFormulaireGroupe({ nomGroupe, filiereKey, excludeId = null }){
+  if(!nomGroupe) return "Le nom du groupe est obligatoire.";
+  if(!filiereKey || !FILIERES[filiereKey]) return "Veuillez sélectionner une filière.";
+  const doublon = FILIERES[filiereKey].groups.some(g =>
+    g.nom.trim().toLowerCase() === nomGroupe.toLowerCase() && g.id != excludeId
+  );
+  if(doublon) return "Un groupe portant ce nom existe déjà dans cette filière.";
+  return null;
+}
+
 addGroupForm.addEventListener('submit', (e) => {
   e.preventDefault();
 
@@ -1237,6 +1315,9 @@ addGroupForm.addEventListener('submit', (e) => {
   const filiereKey  = addGroupFiliereSelect.value;
   const idFiliere   = ID_FILIERE_PAR_CLE[filiereKey];
   const capacite    = document.getElementById('addGroupCapacite').value.trim();
+
+  const erreur = validerFormulaireGroupe({ nomGroupe, filiereKey, excludeId: null });
+  if(erreur){ showToast(erreur); return; }
 
   const confirmBtn = document.getElementById('confirmAddGroupBtn');
   confirmBtn.disabled = true;
@@ -1351,6 +1432,9 @@ editGroupForm.addEventListener('submit', (e) => {
   const filiereKey = editGroupFiliereSelect.value;
   const idFiliere  = ID_FILIERE_PAR_CLE[filiereKey];
   const capacite   = document.getElementById('editGroupCapacite').value.trim();
+
+  const erreur = validerFormulaireGroupe({ nomGroupe, filiereKey, excludeId: idGroupe });
+  if(erreur){ showToast(erreur); return; }
 
   // Retrouve l'ancien nom et l'ancienne filière du groupe dans les données locales
   let oldFiliereKey = null;
@@ -1512,8 +1596,20 @@ function loadNotifications(){
 function toggleNotifDropdown(forceState){
   const willShow = (forceState !== undefined) ? forceState : !notifDropdown.classList.contains('show');
   notifDropdown.classList.toggle('show', willShow);
-  if(willShow) loadNotifications();
+  if(willShow){ loadNotifications(); positionNotifDropdownMobile(); }
 }
+
+// Sur mobile, positionne le panneau juste sous la barre du haut plutôt que de
+// dépendre d'un décalage fixe par rapport au bouton. Desktop non concerné.
+function positionNotifDropdownMobile(){
+  if (window.innerWidth > 640) { notifDropdown.style.top = ''; return; }
+  const bar = document.querySelector('.topbar') || notifBtn.closest('header') || notifBtn.parentElement;
+  const rect = bar.getBoundingClientRect();
+  notifDropdown.style.top = Math.round(rect.bottom + 10) + 'px';
+}
+window.addEventListener('resize', () => {
+  if (notifDropdown.classList.contains('show')) positionNotifDropdownMobile();
+});
 
 // Ouvre / ferme le dropdown au clic sur la cloche
 notifBtn.addEventListener('click', (e) => {

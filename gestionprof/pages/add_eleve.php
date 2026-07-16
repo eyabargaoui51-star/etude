@@ -15,13 +15,31 @@ $id_groupe        = isset($_POST['id_groupe']) ? (int)$_POST['id_groupe'] : 0;
 $statut_paiement  = trim($_POST['statut_paiement'] ?? '');
 $montant_paye_raw = trim($_POST['montant_paye'] ?? '');
 
-if ($nom === '' || $prenom === '' || $telephone === '' || $date_inscription === '' || $id_groupe <= 0) {
+if ($nom === '' || $prenom === '' || $date_inscription === '' || $id_groupe <= 0) {
     respond(false, 'Veuillez remplir tous les champs obligatoires.');
+}
+
+// Numéro de téléphone tunisien : 8 chiffres, préfixes valides 2/3/4/5/7/9
+$telephone = preg_replace('/[\s\-\.]/', '', $telephone);
+$telephone = preg_replace('/^(\+216|00216)/', '', $telephone);
+if ($telephone === '' || !preg_match('/^[234579]\d{7}$/', $telephone)) {
+    respond(false, 'Numéro de téléphone invalide. Un numéro tunisien contient 8 chiffres (ex : 20 123 456).');
 }
 
 $d = DateTime::createFromFormat('Y-m-d', $date_inscription);
 if (!$d || $d->format('Y-m-d') !== $date_inscription) {
     respond(false, "Date d'inscription invalide.");
+}
+
+// Empêche deux élèves d'avoir le même numéro de téléphone
+$checkTel = mysqli_prepare($conn, "SELECT id_eleve FROM eleve WHERE telephone = ? LIMIT 1");
+mysqli_stmt_bind_param($checkTel, 's', $telephone);
+mysqli_stmt_execute($checkTel);
+mysqli_stmt_store_result($checkTel);
+$telephoneDejaUtilise = mysqli_stmt_num_rows($checkTel) > 0;
+mysqli_stmt_close($checkTel);
+if ($telephoneDejaUtilise) {
+    respond(false, 'Ce numéro de téléphone est déjà utilisé par un autre élève.');
 }
 
 $statuts_valides = ['En attente', 'Payé'];

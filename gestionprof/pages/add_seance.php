@@ -16,6 +16,11 @@ if ($date_seance === '' || $heure_debut === '' || $heure_fin === '' || $chapitre
     respond(false, 'Veuillez remplir tous les champs obligatoires.');
 }
 
+$dSeance = DateTime::createFromFormat('Y-m-d', $date_seance);
+if (!$dSeance || $dSeance->format('Y-m-d') !== $date_seance) {
+    respond(false, 'Date de séance invalide.');
+}
+
 if ($heure_fin <= $heure_debut) {
     respond(false, "L'heure de fin doit être postérieure à l'heure de début.");
 }

@@ -1,4 +1,5 @@
 <?php
+require_once("../config/auth.php");
 require_once("../config/database.php");
 if (!$conn->ping()) {
   die("Connexion MySQL perdue.");
@@ -30,7 +31,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_action']) && $_P
     } else {
         $stmt = mysqli_prepare($conn, "UPDATE seance SET statut = ? WHERE id_seance = ?");
         if (!$stmt) {
-            $response['message'] = "Erreur de préparation de la requête : " . mysqli_error($conn);
+            error_log("Erreur de préparation SQL (update_seance_statut) : " . mysqli_error($conn));
+            $response['message'] = "Une erreur est survenue. Veuillez réessayer plus tard.";
         } else {
             mysqli_stmt_bind_param($stmt, "si", $statut, $id);
             if (mysqli_stmt_execute($stmt)) {
@@ -38,7 +40,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_action']) && $_P
                 $response['id']      = $id;
                 $response['statut']  = $statut;
             } else {
-                $response['message'] = "Erreur lors de la mise à jour : " . mysqli_stmt_error($stmt);
+                error_log("Erreur lors de la mise à jour du statut (id=$id) : " . mysqli_stmt_error($stmt));
+                $response['message'] = "Une erreur est survenue lors de la mise à jour. Veuillez réessayer plus tard.";
             }
             mysqli_stmt_close($stmt);
         }
@@ -50,19 +53,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_action']) && $_P
 }
 
 function fetch_count(mysqli $conn, string $sql): int {
-    $res = mysqli_query($conn, $sql);
-    if (!$res) {
-        die("Erreur SQL : " . mysqli_error($conn));
+    $stmt = mysqli_prepare($conn, $sql);
+    if (!$stmt) {
+        error_log("Erreur de préparation SQL (fetch_count) : " . mysqli_error($conn));
+        return 0;
     }
+    mysqli_stmt_execute($stmt);
+    $res = mysqli_stmt_get_result($stmt);
     $row = mysqli_fetch_assoc($res);
+    mysqli_stmt_close($stmt);
     return (int)($row['total'] ?? 0);
 }
 
 function safe_query(mysqli $conn, string $sql): mysqli_result {
-    $res = mysqli_query($conn, $sql);
-    if (!$res) {
-        die("Erreur SQL : " . mysqli_error($conn));
+    $stmt = mysqli_prepare($conn, $sql);
+    if (!$stmt) {
+        error_log("Erreur de préparation SQL (safe_query) : " . mysqli_error($conn));
+        die("Une erreur est survenue lors du chargement des données. Veuillez réessayer plus tard.");
     }
+    mysqli_stmt_execute($stmt);
+    $res = mysqli_stmt_get_result($stmt);
+    mysqli_stmt_close($stmt);
     return $res;
 }
 
@@ -164,7 +175,8 @@ $sql_seances_a_confirmer = "SELECT s.id_seance, s.date_seance, s.heure_debut, s.
                             ORDER BY s.date_seance ASC, s.heure_fin ASC";
 $stmt_a_confirmer = mysqli_prepare($conn, $sql_seances_a_confirmer);
 if (!$stmt_a_confirmer) {
-    die("Erreur de préparation de la requête : " . mysqli_error($conn));
+    error_log("Erreur de préparation SQL (seances_a_confirmer) : " . mysqli_error($conn));
+    die("Une erreur est survenue lors du chargement des données. Veuillez réessayer plus tard.");
 }
 mysqli_stmt_execute($stmt_a_confirmer);
 $res_seances_a_confirmer = mysqli_stmt_get_result($stmt_a_confirmer);
@@ -414,7 +426,66 @@ mysqli_stmt_close($stmt_a_confirmer);
       .date-pill__text { display: none; }
       .calendar-popover { right: -55px; }
     }
-  </style>
+  
+    /* ======================================================
+       RESPONSIVE — ajustements supplémentaires mobile/tablette
+       (n'écrase aucune règle existante, complète uniquement)
+       ====================================================== */
+    @media (max-width: 480px) {
+      .topbar { height: auto; min-height: 66px; padding: 10px 14px; flex-wrap: wrap; row-gap: 8px; }
+      .topbar__title { font-size: 21px; }
+      .content { padding: 14px; gap: 16px; }
+      .banner { padding: 20px 18px; border-radius: 22px; }
+      .banner__illustration { display: none; }
+      .stats-grid, .filiere-grid { grid-template-columns: 1fr; }
+      .modal { padding: 16px; border-radius: 20px; }
+      .modal__actions { flex-direction: column-reverse; }
+      .modal__actions .modal__btn { width: 100%; }
+      .actions-row { flex-direction: column; }
+      .actions-row .action-btn { width: 100%; justify-content: center; }
+      .toast-container { left: 12px; right: 12px; }
+      .toast { text-align: center; }
+      .panel__header { flex-wrap: wrap; }
+    }
+
+    /* ======================================================
+       RESPONSIVE — correction du calendrier (popover) sur mobile
+       Le popover sortait de l'écran car il était positionné avec
+       "right" relatif à un petit bouton proche du bord droit.
+       Sur mobile, on le fixe par rapport à l'écran et on le centre,
+       ce qui garantit qu'il reste toujours entièrement visible,
+       quelle que soit la largeur de l'écran ou du bouton déclencheur.
+       Le comportement desktop (> 860px) n'est pas touché.
+       ====================================================== */
+    @media (max-width: 860px) {
+      .topbar__right { flex-wrap: wrap; justify-content: flex-end; row-gap: 10px; }
+      .topbar__right .icon-btn,
+      .topbar__right .date-dropdown,
+      .topbar__right .date-pill { flex-shrink: 0; }
+
+      .calendar-popover {
+        position: fixed;
+        top: 90px; /* repositionné précisément en JS à l'ouverture, juste sous le bouton */
+        left: 16px;
+        right: 16px;
+        bottom: auto;
+        transform: none;
+        margin-top: 0;
+        width: auto;
+        max-width: none;
+        max-height: 80vh;
+        overflow-y: auto;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .calendar-popover { left: 10px; right: 10px; top: 74px; }
+    }
+
+    /* Positionne le popover juste sous la barre du haut une fois ouverte,
+       en JS on ajuste dynamiquement le "top" pour coller sous le bouton
+       tout en restant toujours dans les limites de l'écran (voir script). */
+</style>
 </head>
 <body>
 
@@ -458,6 +529,9 @@ mysqli_stmt_close($stmt_a_confirmer);
       </div>
 
       <div class="topbar__right">
+        <a href="export_rapport.php" class="btn btn--primary" style="text-decoration:none;display:inline-flex;align-items:center;gap:8px;white-space:nowrap;">
+          📄 Exporter le rapport
+        </a>
         <button class="icon-btn" id="searchBtn" type="button" aria-label="Rechercher">🔎</button>
         <div class="date-dropdown" id="dateDropdown">
           <button class="date-pill" id="datePillBtn" type="button" aria-haspopup="true" aria-expanded="false">
@@ -492,7 +566,7 @@ mysqli_stmt_close($stmt_a_confirmer);
           <div style="flex:1;min-width:0;">
             <p style="margin:0 0 4px;color:var(--text);font-weight:600;">
               La séance du groupe <?php echo htmlspecialchars($sc['nom_groupe'], ENT_QUOTES, 'UTF-8'); ?>,
-              prévue le <?php echo $dateLabel; ?> à <?php echo $heureLabel; ?>,
+              prévue le <?php echo htmlspecialchars($dateLabel, ENT_QUOTES, 'UTF-8'); ?> à <?php echo htmlspecialchars($heureLabel, ENT_QUOTES, 'UTF-8'); ?>,
               est terminée mais son statut est toujours « À venir ».
             </p>
             <p style="margin:0 0 12px;color:var(--muted);font-size:14px;">Veuillez mettre à jour son statut.</p>
@@ -723,14 +797,46 @@ function initCalendarDropdown() {
       grid.appendChild(btn);
     });
   }
-  function openPopover() { popover.hidden = false; dropdown.classList.add('is-open'); trigger.setAttribute('aria-expanded', 'true'); viewYear = selectedDate.getFullYear(); viewMonth = selectedDate.getMonth(); renderCalendar(); }
-  function closePopover() { popover.hidden = true; dropdown.classList.remove('is-open'); trigger.setAttribute('aria-expanded', 'false'); }
+  function isMobileCalendar() { return window.innerWidth <= 860; }
+  function positionPopoverMobile() {
+    // Ne s'applique qu'en dessous de 860px (même seuil que le CSS mobile) ;
+    // le comportement desktop (positionnement via CSS "right") n'est pas modifié.
+    if (!isMobileCalendar()) { popover.style.top = ''; return; }
+    const rect = trigger.getBoundingClientRect();
+    const spacing = 10;
+    let top = rect.bottom + spacing;
+    // Sécurité : si jamais ça dépasse le bas de l'écran, on remonte le popover.
+    const maxTop = window.innerHeight - 60;
+    if (top > maxTop) top = maxTop;
+    popover.style.top = top + 'px';
+  }
+  // Le topbar utilise "backdrop-filter", ce qui en fait le référentiel de
+  // positionnement ("containing block") pour tout élément en position:fixed
+  // placé à l'intérieur — le popover se retrouvait donc "fixe" par rapport au
+  // topbar (haut de 66-82px) et non par rapport à l'écran, d'où le débordement.
+  // Sur mobile, on déplace temporairement le popover en dehors du topbar
+  // (directement dans <body>) pendant qu'il est ouvert, afin qu'il soit
+  // réellement positionné par rapport à l'écran. On le replace à sa position
+  // d'origine à la fermeture. Le desktop n'est pas concerné (aucun déplacement).
+  function movePopoverForMobile() {
+    if (isMobileCalendar() && popover.parentElement !== document.body) {
+      document.body.appendChild(popover);
+    }
+  }
+  function restorePopoverPosition() {
+    if (popover.parentElement === document.body) {
+      dropdown.appendChild(popover);
+    }
+  }
+  function openPopover() { movePopoverForMobile(); popover.hidden = false; dropdown.classList.add('is-open'); trigger.setAttribute('aria-expanded', 'true'); viewYear = selectedDate.getFullYear(); viewMonth = selectedDate.getMonth(); renderCalendar(); positionPopoverMobile(); }
+  function closePopover() { popover.hidden = true; dropdown.classList.remove('is-open'); trigger.setAttribute('aria-expanded', 'false'); restorePopoverPosition(); }
+  window.addEventListener('resize', () => { if (!popover.hidden) positionPopoverMobile(); });
   trigger.addEventListener('click', (e) => { e.stopPropagation(); popover.hidden ? openPopover() : closePopover(); });
   prevBtn.addEventListener('click', (e) => { e.stopPropagation(); viewMonth--; if (viewMonth < 0) { viewMonth = 11; viewYear--; } renderCalendar(); });
   nextBtn.addEventListener('click', (e) => { e.stopPropagation(); viewMonth++; if (viewMonth > 11) { viewMonth = 0; viewYear++; } renderCalendar(); });
   todayBtn.addEventListener('click', (e) => { e.stopPropagation(); selectedDate = new Date(today); updatePillText(selectedDate); viewYear = today.getFullYear(); viewMonth = today.getMonth(); renderCalendar(); closePopover(); });
   popover.addEventListener('click', (e) => e.stopPropagation());
-  document.addEventListener('click', (e) => { if (!dropdown.contains(e.target)) closePopover(); });
+  document.addEventListener('click', (e) => { if (!dropdown.contains(e.target) && !popover.contains(e.target)) closePopover(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePopover(); });
   updatePillText(selectedDate);
 }
@@ -1095,8 +1201,8 @@ function initModalSystem() {
       const result = await currentAction.onSubmit(data, Array.from(selectedStudentIds));
       if (result && result.success) {
         showToast(result.message || '✅ Opération réussie.');
-        closeModal();
         if (currentAction.reload !== false) setTimeout(() => window.location.reload(), 800);
+        closeModal();
       } else {
         showToast((result && result.message) || "❌ Une erreur est survenue.", 'error');
       }

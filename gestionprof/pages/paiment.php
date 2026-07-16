@@ -3,6 +3,7 @@
    PAIMENT.PHP — Gestion des paiements (version dynamique)
    Connecté à la base "gestion_etude" via mysqli
    ========================================================================= */
+require_once("../config/auth.php");
 require_once("../config/database.php");
 
 /* -------------------------------------------------------------------------
@@ -90,8 +91,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_action']) && $_P
     $idPaiement = (int)($_POST['id_paiement'] ?? 0);
     $montantRaw = str_replace(',', '.', trim($_POST['montant'] ?? ''));
 
-    if ($idPaiement <= 0 || $montantRaw === '' || !is_numeric($montantRaw) || (float)$montantRaw < 0) {
-        $response['message'] = "Montant invalide.";
+    if ($idPaiement <= 0 || $montantRaw === '' || !is_numeric($montantRaw) || (float)$montantRaw <= 0) {
+        $response['message'] = "Le montant doit être un nombre positif.";
     } else {
         $montant = (float)$montantRaw;
 
@@ -180,7 +181,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_action']) && $_P
     $montantRaw = str_replace(',', '.', trim($_POST['montant'] ?? ''));
 
     if ($idPaiement <= 0 || $montantRaw === '' || !is_numeric($montantRaw) || (float)$montantRaw <= 0) {
-        $response['message'] = "Montant invalide.";
+        $response['message'] = "Le montant doit être un nombre positif.";
     } else {
         $montantVerse = (float)$montantRaw;
 
@@ -960,6 +961,56 @@ $stmt->close();
   @media (max-width: 900px){
     .search-box{ width:180px; }
   }
+
+  /* ======================================================
+     RESPONSIVE — ajustements supplémentaires mobile
+     ====================================================== */
+  @media (max-width: 700px){
+    .filter-bar{ grid-template-columns: 1fr; }
+    .stats{ grid-template-columns: 1fr; }
+    .topbar{ flex-wrap: wrap; height: auto; padding: 14px 16px; row-gap: 10px; }
+    .topbar-right{ width: 100%; flex-wrap: wrap; }
+    .search-box{ width: 100%; }
+    .content{ padding: 16px; }
+    .table-card{ overflow-x: auto; -webkit-overflow-scrolling: touch; padding: 16px; }
+    table{ min-width: 760px; }
+    .table-footer{ flex-direction: column; align-items: flex-start; }
+    .modal-box{ max-width: 100%; }
+    .modal-actions{ flex-direction: column-reverse; }
+    .modal-actions .btn{ width: 100%; justify-content: center; }
+  }
+  @media (max-width: 420px){
+    .date-box{ display: none; }
+    .page-title{ font-size: 18px; }
+  }
+
+  /* ======================================================
+     RESPONSIVE — correction des panneaux Notifications / Calendrier
+     Les panneaux (.notif-panel / .cal-panel) étaient positionnés en
+     "right:0" par rapport à leur petit bouton déclencheur. Sur mobile,
+     la barre d'icônes passe à la ligne et se retrouve alignée à
+     gauche de l'écran : le panneau (ancré à droite d'un bouton situé
+     à gauche) débordait donc entièrement hors de l'écran vers la
+     gauche. On le fixe désormais par rapport à l'écran, avec des
+     marges de sécurité de chaque côté : il ne peut plus déborder,
+     quelle que soit la position du bouton. Le desktop n'est pas touché.
+     ====================================================== */
+  @media (max-width: 700px){
+    .notif-panel, .cal-panel, .dropdown-panel{
+      position: fixed;
+      left: 16px;
+      right: 16px;
+      top: 128px;
+      width: auto;
+      max-width: none;
+      max-height: 70vh;
+      overflow-y: auto;
+    }
+    .dropdown-panel::before{ display: none; }
+  }
+  @media (max-width: 420px){
+    .notif-panel, .cal-panel, .dropdown-panel{ left: 10px; right: 10px; top: 118px; }
+  }
 </style>
 </head>
 <body>
@@ -1430,6 +1481,12 @@ $stmt->close();
     if(idPaiementEnEdition === null) return;
 
     const montant = montantInput.value;
+    const montantNum = parseFloat(String(montant).replace(',', '.'));
+    if (montant === '' || isNaN(montantNum) || montantNum <= 0) {
+      montantError.textContent = "Le montant doit être un nombre positif.";
+      montantError.style.display = 'block';
+      return;
+    }
     confirmMontantBtn.disabled = true;
     montantError.style.display = 'none';
 
@@ -1504,6 +1561,12 @@ $stmt->close();
     if(idPaiementVersement === null) return;
 
     const montant = versementInput.value;
+    const montantNum = parseFloat(String(montant).replace(',', '.'));
+    if (montant === '' || isNaN(montantNum) || montantNum <= 0) {
+      versementError.textContent = "Le montant doit être un nombre positif.";
+      versementError.style.display = 'block';
+      return;
+    }
     confirmVersementBtn.disabled = true;
     versementError.style.display = 'none';
 
@@ -1557,11 +1620,26 @@ $stmt->close();
     });
   }
 
+  // Sur mobile, la barre du haut passe sur plusieurs lignes : on positionne le
+  // panneau juste en dessous d'elle plutôt que de dépendre d'un décalage fixe,
+  // afin qu'il ne chevauche jamais le contenu ni ne dépasse l'écran.
+  // Le desktop (> 700px) n'est pas concerné : le CSS d'origine (right:0) reste actif.
+  function positionDropdownMobile(panel){
+    if (window.innerWidth > 700) { panel.style.top = ''; return; }
+    const topbar = document.querySelector('.topbar');
+    const rect = topbar.getBoundingClientRect();
+    panel.style.top = Math.round(rect.bottom + 10) + 'px';
+  }
+  window.addEventListener('resize', () => {
+    if (notifPanel.classList.contains('open')) positionDropdownMobile(notifPanel);
+    if (calPanel.classList.contains('open')) positionDropdownMobile(calPanel);
+  });
+
   notifBtn.addEventListener('click', (e)=>{
     e.stopPropagation();
     const willOpen = !notifPanel.classList.contains('open');
     closeAllDropdowns();
-    if(willOpen) notifPanel.classList.add('open');
+    if(willOpen){ notifPanel.classList.add('open'); positionDropdownMobile(notifPanel); }
   });
 
   markAllRead.addEventListener('click', (e)=>{
@@ -1649,6 +1727,7 @@ $stmt->close();
     if(willOpen){
       calPanel.classList.add('open');
       renderCalendar();
+      positionDropdownMobile(calPanel);
     }
   });
 

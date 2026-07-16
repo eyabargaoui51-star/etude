@@ -2,7 +2,20 @@
 /* =========================================================================
    PRESENCE.PHP — Gestion des présences (version dynamique)
    Connecté à la base "gestion_etude" via mysqli
+
+   ⚠️ IMPORTANT — Contrainte d'unicité recommandée :
+   Pour qu'il soit strictement impossible, même en cas de double clic ou de
+   requêtes simultanées, d'enregistrer deux présences pour le même élève sur
+   la même séance, exécute une seule fois cette requête dans phpMyAdmin :
+
+     ALTER TABLE `presence`
+       ADD UNIQUE KEY `uniq_seance_eleve` (`id_seance`, `id_eleve`);
+
+   Le code ci-dessous utilise INSERT ... ON DUPLICATE KEY UPDATE, qui exploite
+   cette contrainte : la base elle-même refuse toute deuxième ligne pour la
+   même paire (séance, élève) et met simplement à jour le statut existant.
    ========================================================================= */
+require_once("../config/auth.php");
 require_once("../config/database.php");
 
 /* -------------------------------------------------------------------------
@@ -16,34 +29,45 @@ if (isset($_GET['action']) && $_GET['action'] === 'save_presence' && $_SERVER['R
     $id_seance = isset($payload['id_seance']) ? (int)$payload['id_seance'] : 0;
     $liste     = isset($payload['presences']) && is_array($payload['presences']) ? $payload['presences'] : [];
 
-    if ($id_seance <= 0 || empty($liste)) {
+    if ($id_seance <= 0) {
         echo json_encode(['success' => false, 'message' => "Séance invalide."]);
         exit;
     }
+    if (empty($liste)) {
+        echo json_encode(['success' => false, 'message' => "Aucun élève à enregistrer."]);
+        exit;
+    }
 
+    // Une seule requête préparée, réutilisée pour chaque élève : la contrainte
+    // UNIQUE (id_seance, id_eleve) empêche toute présence en double au niveau
+    // de la base elle-même — même en cas de requêtes envoyées simultanément.
+    $stmt = mysqli_prepare(
+        $conn,
+        "INSERT INTO presence (id_seance, id_eleve, statut) VALUES (?, ?, ?)
+         ON DUPLICATE KEY UPDATE statut = VALUES(statut)"
+    );
+    if (!$stmt) {
+        echo json_encode(['success' => false, 'message' => "Erreur de préparation de la requête."]);
+        exit;
+    }
+
+    $erreur = null;
     foreach ($liste as $p) {
         $id_eleve = (int)($p['id_eleve'] ?? 0);
         if ($id_eleve <= 0) continue;
         $statut = (!empty($p['present'])) ? 'Présent' : 'Absent';
 
-        // On vérifie si une présence existe déjà pour cette séance / cet élève
-        $check = mysqli_prepare($conn, "SELECT id_presence FROM presence WHERE id_seance = ? AND id_eleve = ?");
-        mysqli_stmt_bind_param($check, "ii", $id_seance, $id_eleve);
-        mysqli_stmt_execute($check);
-        $res = mysqli_stmt_get_result($check);
-
-        if ($row = mysqli_fetch_assoc($res)) {
-            $upd = mysqli_prepare($conn, "UPDATE presence SET statut = ? WHERE id_presence = ?");
-            mysqli_stmt_bind_param($upd, "si", $statut, $row['id_presence']);
-            mysqli_stmt_execute($upd);
-            mysqli_stmt_close($upd);
-        } else {
-            $ins = mysqli_prepare($conn, "INSERT INTO presence (id_seance, id_eleve, statut) VALUES (?, ?, ?)");
-            mysqli_stmt_bind_param($ins, "iis", $id_seance, $id_eleve, $statut);
-            mysqli_stmt_execute($ins);
-            mysqli_stmt_close($ins);
+        mysqli_stmt_bind_param($stmt, "iis", $id_seance, $id_eleve, $statut);
+        if (!mysqli_stmt_execute($stmt)) {
+            $erreur = mysqli_stmt_error($stmt);
+            break;
         }
-        mysqli_stmt_close($check);
+    }
+    mysqli_stmt_close($stmt);
+
+    if ($erreur !== null) {
+        echo json_encode(['success' => false, 'message' => "Erreur lors de l'enregistrement des présences."]);
+        exit;
     }
 
     echo json_encode(['success' => true]);
@@ -378,6 +402,29 @@ $dateSlashes = $dateObj->format('d/m/Y');
     .stats-row{grid-template-columns:repeat(2,1fr);}
     .search-box input{width:180px;}
     table{display:block;overflow-x:auto;white-space:nowrap;}
+  }
+
+  /* ======================================================
+     RESPONSIVE — ajustements supplémentaires mobile
+     (corrige le comportement du tableau pour un vrai
+     scroll horizontal au lieu d'un table en display:block)
+     ====================================================== */
+  @media (max-width: 900px){
+    .table-card{ overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    table{ display: table; min-width: 700px; white-space: normal; }
+  }
+  @media (max-width: 700px){
+    .filters-card{ flex-direction: column; align-items: stretch; }
+    .filter-group{ min-width: 0; }
+    .header-right{ width: 100%; justify-content: space-between; flex-wrap: wrap; }
+    .search-box input{ width: 100%; }
+    .dd-panel{ left: 0; right: 0; }
+    .cal-panel{ left: 0; right: auto; width: min(280px, calc(100vw - 32px)); }
+  }
+  @media (max-width: 480px){
+    .stats-row{ grid-template-columns: 1fr; }
+    .header-left h1{ font-size: 20px; }
+    .table-card{ padding: 16px 16px 8px; }
   }
 </style>
 </head>

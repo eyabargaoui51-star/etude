@@ -8,6 +8,7 @@
      déjà présents dans le design (aucun changement HTML/CSS).
    ============================================================ */
 
+require_once '../config/auth.php';
 require_once '../config/database.php';
 
 /* ---------- Chargement des groupes / filières (utilisé partout ci-dessous) ----------
@@ -71,6 +72,45 @@ function definirStatutPaiement($conn, $idEleve, $statutFront) {
 }
 
 /* ============================================================
+   Fonctions de validation (renforcement des contrôles serveur)
+   ============================================================ */
+
+// Nettoie un numéro tunisien : retire espaces/tirets et l'indicatif +216 / 00216
+function normaliserTelephoneTunisien($tel) {
+    $tel = preg_replace('/[\s\-\.]/', '', (string)$tel);
+    $tel = preg_replace('/^(\+216|00216)/', '', $tel);
+    return $tel;
+}
+
+// Un numéro tunisien valide : 8 chiffres, commençant par 2, 3, 4, 5, 7 ou 9
+// (préfixes mobiles 2/4/5/9, fixes 3/7).
+function telephoneTunisienValide($tel) {
+    return (bool) preg_match('/^[234579]\d{7}$/', $tel);
+}
+
+// Vérifie qu'une date au format Y-m-d est une date réelle (pas seulement bien formée)
+function dateValide($date, $format = 'Y-m-d') {
+    if (!is_string($date) || $date === '') return false;
+    $d = DateTime::createFromFormat($format, $date);
+    return $d && $d->format($format) === $date;
+}
+
+// Empêche deux élèves d'avoir le même numéro de téléphone (hors lui-même en cas de modification)
+function telephoneDejaUtilise($conn, $telNormalise, $excludeId = 0) {
+    if ($excludeId > 0) {
+        $stmt = $conn->prepare("SELECT id_eleve FROM eleve WHERE telephone = ? AND id_eleve <> ? LIMIT 1");
+        $stmt->bind_param("si", $telNormalise, $excludeId);
+    } else {
+        $stmt = $conn->prepare("SELECT id_eleve FROM eleve WHERE telephone = ? LIMIT 1");
+        $stmt->bind_param("s", $telNormalise);
+    }
+    $stmt->execute();
+    $trouve = $stmt->get_result()->fetch_assoc() !== null;
+    $stmt->close();
+    return $trouve;
+}
+
+/* ============================================================
    Endpoints AJAX (CRUD) — appelés en POST depuis le JS du bas
    de page. On répond en JSON puis on arrête l'exécution avant
    tout affichage HTML.
@@ -83,13 +123,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_action'])) {
     if ($action === 'add') {
         $nom        = trim($_POST['nom'] ?? '');
         $prenom     = trim($_POST['prenom'] ?? '');
-        $tel        = trim($_POST['tel'] ?? '');
+        $tel        = normaliserTelephoneTunisien(trim($_POST['tel'] ?? ''));
         $idGroupe   = (int)($_POST['groupe'] ?? 0); // le front envoie désormais l'id_groupe
-        $dateEntree = $_POST['dateEntree'] ?? date('Y-m-d');
+        $dateEntree = trim($_POST['dateEntree'] ?? '') !== '' ? trim($_POST['dateEntree']) : date('Y-m-d');
         $paiement   = $_POST['paiement'] ?? 'Non payé';
 
-        if ($nom === '' || $prenom === '' || !isset($idsGroupesValides[$idGroupe])) {
-            $response['message'] = "Champs invalides.";
+        if ($nom === '' || $prenom === '') {
+            $response['message'] = "Le nom et le prénom sont obligatoires.";
+        } elseif (!isset($idsGroupesValides[$idGroupe])) {
+            $response['message'] = "Veuillez sélectionner un groupe valide.";
+        } elseif ($tel === '' || !telephoneTunisienValide($tel)) {
+            $response['message'] = "Numéro de téléphone invalide. Un numéro tunisien contient 8 chiffres (ex : 20 123 456).";
+        } elseif (!dateValide($dateEntree)) {
+            $response['message'] = "Date d'inscription invalide.";
+        } elseif (telephoneDejaUtilise($conn, $tel)) {
+            $response['message'] = "Ce numéro de téléphone est déjà utilisé par un autre élève.";
         } else {
             $stmt = $conn->prepare("INSERT INTO eleve (nom, prenom, telephone, date_inscription, id_groupe) VALUES (?, ?, ?, ?, ?)");
             $stmt->bind_param("ssssi", $nom, $prenom, $tel, $dateEntree, $idGroupe);
@@ -111,13 +159,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_action'])) {
         $id         = (int)($_POST['id'] ?? 0);
         $nom        = trim($_POST['nom'] ?? '');
         $prenom     = trim($_POST['prenom'] ?? '');
-        $tel        = trim($_POST['tel'] ?? '');
+        $tel        = normaliserTelephoneTunisien(trim($_POST['tel'] ?? ''));
         $idGroupe   = (int)($_POST['groupe'] ?? 0); // le front envoie désormais l'id_groupe
-        $dateEntree = $_POST['dateEntree'] ?? date('Y-m-d');
+        $dateEntree = trim($_POST['dateEntree'] ?? '') !== '' ? trim($_POST['dateEntree']) : date('Y-m-d');
         $paiement   = $_POST['paiement'] ?? 'Non payé';
 
-        if ($id <= 0 || $nom === '' || $prenom === '' || !isset($idsGroupesValides[$idGroupe])) {
-            $response['message'] = "Champs invalides.";
+        if ($id <= 0) {
+            $response['message'] = "Élève introuvable.";
+        } elseif ($nom === '' || $prenom === '') {
+            $response['message'] = "Le nom et le prénom sont obligatoires.";
+        } elseif (!isset($idsGroupesValides[$idGroupe])) {
+            $response['message'] = "Veuillez sélectionner un groupe valide.";
+        } elseif ($tel === '' || !telephoneTunisienValide($tel)) {
+            $response['message'] = "Numéro de téléphone invalide. Un numéro tunisien contient 8 chiffres (ex : 20 123 456).";
+        } elseif (!dateValide($dateEntree)) {
+            $response['message'] = "Date d'inscription invalide.";
+        } elseif (telephoneDejaUtilise($conn, $tel, $id)) {
+            $response['message'] = "Ce numéro de téléphone est déjà utilisé par un autre élève.";
         } else {
             $stmt = $conn->prepare("UPDATE eleve SET nom=?, prenom=?, telephone=?, date_inscription=?, id_groupe=? WHERE id_eleve=?");
             $stmt->bind_param("ssssii", $nom, $prenom, $tel, $dateEntree, $idGroupe, $id);
@@ -710,6 +768,25 @@ $conn->close();
     z-index: 300;
   }
   .toast.show{ opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* ======================================================
+     RESPONSIVE — ajustements supplémentaires mobile
+     ====================================================== */
+  @media (max-width: 640px) {
+    .form-row{ grid-template-columns: 1fr; }
+    .card-header-row{ flex-direction: column; align-items: stretch; }
+    .card-header-row .btn{ width: 100%; justify-content: center; }
+    .filter-search, select.filter-select{ width: 100%; min-width: 0; }
+    .table-footer{ flex-direction: column; align-items: flex-start; gap: 6px; }
+    .modal-box{ max-width: 100%; }
+    .modal-actions{ flex-direction: column-reverse; }
+    .modal-actions .btn{ width: 100%; justify-content: center; }
+    .actions-cell{ justify-content: flex-start; flex-wrap: wrap; }
+  }
+  @media (max-width: 400px) {
+    .student-banner-title{ font-size: 20px; }
+    .student-banner-sub{ font-size: 13px; }
+  }
 </style>
 </head>
 <body>
@@ -1153,6 +1230,9 @@ $conn->close();
     const dateEntree = document.getElementById('editDateEntree').value;
     const paiement = document.getElementById('editStatutPaiement').value;
 
+    const erreur = validerFormulaireEleve({ nom, prenom, tel, groupeId, dateEntree, excludeId: currentTargetId });
+    if(erreur){ showToast(erreur); return; }
+
     const confirmBtn = document.getElementById('confirmEditBtn');
     if(confirmBtn) confirmBtn.disabled = true;
 
@@ -1301,6 +1381,34 @@ $conn->close();
     return '';
   }
 
+  /* ---------- Validation côté client (renforce, ne remplace pas, la validation serveur) ---------- */
+  function normaliserTelephone(tel){
+    return (tel || '').replace(/[\s\-\.]/g, '').replace(/^(\+216|00216)/, '');
+  }
+  function telephoneTunisienValideJS(tel){
+    return /^[234579]\d{7}$/.test(tel);
+  }
+  function dateValideJS(dateStr){
+    if(!dateStr) return false;
+    const d = new Date(dateStr + 'T00:00:00');
+    return !isNaN(d.getTime()) && dateStr === d.toISOString().split('T')[0];
+  }
+  // Retourne un message d'erreur (string) ou null si tout est valide.
+  // excludeId : id de l'élève en cours de modification (pour ne pas se comparer à lui-même)
+  function validerFormulaireEleve({ nom, prenom, tel, groupeId, dateEntree, excludeId = null }){
+    if(!nom) return "Le nom est obligatoire.";
+    if(!prenom) return "Le prénom est obligatoire.";
+    if(!groupeId) return "Veuillez sélectionner un groupe.";
+    const telNettoye = normaliserTelephone(tel);
+    if(!telNettoye || !telephoneTunisienValideJS(telNettoye)) {
+      return "Numéro de téléphone invalide. Un numéro tunisien contient 8 chiffres (ex : 20 123 456).";
+    }
+    const doublon = eleves.some(e => normaliserTelephone(e.tel) === telNettoye && e.id !== excludeId);
+    if(doublon) return "Ce numéro de téléphone est déjà utilisé par un autre élève.";
+    if(!dateValideJS(dateEntree)) return "Date d'inscription invalide.";
+    return null;
+  }
+
   addForm.addEventListener('submit', (e) => {
     e.preventDefault();
 
@@ -1316,6 +1424,9 @@ $conn->close();
     const groupeNom = addGroupeSelect.options[addGroupeSelect.selectedIndex].text;
     const dateEntree = document.getElementById('addDateEntree').value;
     const paiement = document.getElementById('addStatutPaiement').value;
+
+    const erreur = validerFormulaireEleve({ nom, prenom, tel, groupeId, dateEntree, excludeId: null });
+    if(erreur){ showToast(erreur); return; }
 
     const confirmBtn = document.getElementById('confirmAddBtn');
     if(confirmBtn) confirmBtn.disabled = true;
