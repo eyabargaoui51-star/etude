@@ -23,12 +23,22 @@
 const SESSION_TIMEOUT_SECONDS = 30 * 60; // 30 minutes d'inactivité
 
 if (session_status() === PHP_SESSION_NONE) {
+    // Détecte automatiquement si la page est servie en HTTPS (cas normal
+    // en production) pour n'envoyer le cookie de session que sur une
+    // connexion chiffrée. En local (XAMPP en http://), reste désactivé
+    // pour ne pas bloquer la connexion en développement.
+    $isHttps = (
+        (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ||
+        (($_SERVER['SERVER_PORT'] ?? '') == 443) ||
+        (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https') // utile derrière un proxy/CDN
+    );
+
     session_set_cookie_params([
         'lifetime' => 0,
         'path'     => '/',
-        'httponly' => true,   // le cookie de session n'est pas accessible en JS
-        'samesite' => 'Lax',  // limite les envois du cookie depuis des sites tiers
-        // 'secure' => true,  // à activer dès que le site tourne en HTTPS
+        'httponly' => true,     // le cookie de session n'est pas accessible en JS
+        'samesite' => 'Lax',    // limite les envois du cookie depuis des sites tiers
+        'secure'   => $isHttps, // cookie envoyé uniquement en HTTPS quand disponible
     ]);
     session_start();
 }

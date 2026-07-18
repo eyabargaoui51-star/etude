@@ -10,6 +10,7 @@
               "Tout marquer comme lu").
    ============================================================ */
 
+require_once("../config/auth.php");
 require_once("../config/database.php");
 header('Content-Type: application/json; charset=UTF-8');
 

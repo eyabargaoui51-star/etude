@@ -1,4 +1,5 @@
 <?php
+require_once("../config/auth.php");
 require_once("../config/database.php");
 require_once("../config/api_response.php"); // définit respond(), bufferise la sortie, capture toute erreur PHP
 

@@ -30,6 +30,10 @@ $d = DateTime::createFromFormat('Y-m-d', $date_inscription);
 if (!$d || $d->format('Y-m-d') !== $date_inscription) {
     respond(false, "Date d'inscription invalide.");
 }
+$anneeInscription = (int)$d->format('Y');
+if ($anneeInscription < 2000 || $anneeInscription > 2035) {
+    respond(false, "Date d'inscription invalide.");
+}
 
 // Empêche deux élèves d'avoir le même numéro de téléphone
 $checkTel = mysqli_prepare($conn, "SELECT id_eleve FROM eleve WHERE telephone = ? LIMIT 1");
@@ -108,7 +112,28 @@ try {
 
     mysqli_stmt_bind_param($stmtPaiement, 'isds', $id_eleve, $statut_paiement, $montant_a_payer, $date_paiement);
     mysqli_stmt_execute($stmtPaiement);
+    $id_paiement = mysqli_insert_id($conn);
     mysqli_stmt_close($stmtPaiement);
+
+    // IMPORTANT : paiment.php recalcule TOUJOURS le statut affiché à partir de
+    // la somme des lignes de la table "versement" (SUM(versement.montant)),
+    // et non à partir de la colonne "paiement.statut". Si on ne crée aucun
+    // versement ici, paiment.php verra total_verse = 0, en déduira "En attente"
+    // et écrasera notre statut "Payé" par "Non payé".
+    // On enregistre donc un versement correspondant au montant réellement payé
+    // à l'inscription, pour que les deux pages restent cohérentes.
+    if ($statut_paiement === 'Payé') {
+        $stmtVersement = mysqli_prepare(
+            $conn,
+            "INSERT INTO versement (id_paiement, montant, date_versement) VALUES (?, ?, NOW())"
+        );
+        if (!$stmtVersement) {
+            respond(false, 'Erreur de préparation de la requête : ' . mysqli_error($conn));
+        }
+        mysqli_stmt_bind_param($stmtVersement, 'id', $id_paiement, $montant_a_payer);
+        mysqli_stmt_execute($stmtVersement);
+        mysqli_stmt_close($stmtVersement);
+    }
 
     mysqli_commit($conn);
     respond(true, "✅ {$prenom} {$nom} a été ajouté(e) avec succès.");

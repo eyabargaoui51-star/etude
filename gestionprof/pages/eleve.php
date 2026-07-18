@@ -88,11 +88,16 @@ function telephoneTunisienValide($tel) {
     return (bool) preg_match('/^[234579]\d{7}$/', $tel);
 }
 
-// Vérifie qu'une date au format Y-m-d est une date réelle (pas seulement bien formée)
+// Vérifie qu'une date au format Y-m-d est une date réelle (pas seulement bien formée),
+// et qu'elle reste dans une plage raisonnable (empêche les fautes de frappe du
+// type année "0202" ou "2206"). Les dates proches dans le futur restent
+// autorisées : elles servent aux pré-inscriptions.
 function dateValide($date, $format = 'Y-m-d') {
     if (!is_string($date) || $date === '') return false;
     $d = DateTime::createFromFormat($format, $date);
-    return $d && $d->format($format) === $date;
+    if (!$d || $d->format($format) !== $date) return false;
+    $annee = (int)$d->format('Y');
+    return $annee >= 2000 && $annee <= 2035;
 }
 
 // Empêche deux élèves d'avoir le même numéro de téléphone (hors lui-même en cas de modification)
@@ -924,7 +929,7 @@ $conn->close();
       <div class="form-row">
         <div class="modal-field">
           <label for="editDateEntree">Date d'entrée</label>
-          <input type="date" id="editDateEntree" name="dateEntree" required>
+          <input type="date" id="editDateEntree" name="dateEntree" required min="2000-01-01" max="2035-12-31">
         </div>
         <div class="modal-field">
           <label for="editStatutPaiement">Statut de paiement</label>
@@ -994,7 +999,7 @@ $conn->close();
       <div class="form-row">
         <div class="modal-field">
           <label for="addDateEntree">Date d'entrée</label>
-          <input type="date" id="addDateEntree" name="dateEntree" required>
+          <input type="date" id="addDateEntree" name="dateEntree" required min="2000-01-01" max="2035-12-31">
         </div>
         <div class="modal-field">
           <label for="addStatutPaiement">Statut de paiement</label>
@@ -1349,7 +1354,7 @@ $conn->close();
     if(addForm) addForm.reset();
     if(addGroupeSelect) addGroupeSelect.selectedIndex = 0;
     const dateField = document.getElementById('addDateEntree');
-    if(dateField) dateField.value = new Date().toISOString().split('T')[0];
+    if(dateField) dateField.value = todayLocalISO();
     addModal.classList.add('show');
     const nomField = document.getElementById('addNom');
     if(nomField) nomField.focus();
@@ -1385,13 +1390,37 @@ $conn->close();
   function normaliserTelephone(tel){
     return (tel || '').replace(/[\s\-\.]/g, '').replace(/^(\+216|00216)/, '');
   }
+  /** Retourne la date du jour au format YYYY-MM-DD en HEURE LOCALE
+      (jamais toISOString(), qui convertit en UTC et décale la date
+      d'un jour en arrière pour les fuseaux comme la Tunisie, UTC+1). */
+  function todayLocalISO(){
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
   function telephoneTunisienValideJS(tel){
     return /^[234579]\d{7}$/.test(tel);
   }
   function dateValideJS(dateStr){
+    // Ne PAS utiliser toISOString() ici : elle convertit en UTC, ce qui
+    // décale la date d'un jour en arrière pour les fuseaux horaires
+    // devant l'UTC (ex: la Tunisie, UTC+1), et rejetait donc des dates
+    // parfaitement valides. On compare les composants de la date en
+    // heure locale à la place.
     if(!dateStr) return false;
-    const d = new Date(dateStr + 'T00:00:00');
-    return !isNaN(d.getTime()) && dateStr === d.toISOString().split('T')[0];
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+    if(!match) return false;
+    const annee = parseInt(match[1], 10);
+    const mois  = parseInt(match[2], 10);
+    const jour  = parseInt(match[3], 10);
+    const d = new Date(annee, mois - 1, jour);
+    if (d.getFullYear() !== annee || (d.getMonth() + 1) !== mois || d.getDate() !== jour) return false;
+    // Garde-fou contre les fautes de frappe évidentes (ex: année 0202, 2206...).
+    // Les inscriptions à date future proche restent autorisées (pré-inscriptions).
+    if (annee < 2000 || annee > 2035) return false;
+    return true;
   }
   // Retourne un message d'erreur (string) ou null si tout est valide.
   // excludeId : id de l'élève en cours de modification (pour ne pas se comparer à lui-même)

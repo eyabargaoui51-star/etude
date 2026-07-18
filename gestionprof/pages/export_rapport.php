@@ -103,7 +103,34 @@ function pdf_statut_paiement_libelle(string $statutBrut): string {
 }
 
 /* --------------------------------------------------------------------
-   1) Statistiques globales (compteurs)
+   0) Lecture des filtres envoyés par la modale "Exporter un rapport"
+      (type, dateDebut, dateFin). Si aucun filtre valide n'est fourni
+      (ex: accès direct via le lien du haut du dashboard), on repasse
+      sur le rapport complet, comme avant — donc rien ne casse pour
+      les usages existants.
+   -------------------------------------------------------------------- */
+$typesValides = ['Présences', 'Paiements', 'Notes', 'Groupes'];
+$typeDemande  = $_GET['type'] ?? '';
+$typeDemande  = in_array($typeDemande, $typesValides, true) ? $typeDemande : null;
+
+function pdf_date_valide(string $d): bool {
+    if ($d === '') return false;
+    $dt = DateTime::createFromFormat('Y-m-d', $d);
+    return $dt !== false && $dt->format('Y-m-d') === $d;
+}
+
+$dateDebutBrute = $_GET['dateDebut'] ?? '';
+$dateFinBrute   = $_GET['dateFin'] ?? '';
+$filtreDatesActif = pdf_date_valide($dateDebutBrute)
+    && pdf_date_valide($dateFinBrute)
+    && $dateDebutBrute <= $dateFinBrute;
+
+$dateDebut = $filtreDatesActif ? $dateDebutBrute : null;
+$dateFin   = $filtreDatesActif ? $dateFinBrute   : null;
+
+/* --------------------------------------------------------------------
+   1) Statistiques globales (compteurs) — toujours affichées en haut,
+      quel que soit le type de rapport choisi (vue d'ensemble).
    -------------------------------------------------------------------- */
 $total_eleves            = pdf_fetch_count($conn, "SELECT COUNT(*) AS total FROM eleve");
 $total_groupes           = pdf_fetch_count($conn, "SELECT COUNT(*) AS total FROM groupe");
@@ -114,59 +141,128 @@ $total_absences          = pdf_fetch_count($conn, "SELECT COUNT(*) AS total FROM
 
 /* --------------------------------------------------------------------
    2) Tableau des groupes (avec filière, capacité, nb d'élèves)
+      Affiché si : aucun type demandé (rapport complet) OU type = "Groupes"
    -------------------------------------------------------------------- */
-$sql_groupes = "SELECT g.nom_groupe,
-                       f.nom_filiere,
-                       g.capacite,
-                       (SELECT COUNT(*) FROM eleve e WHERE e.id_groupe = g.id_groupe) AS nb_eleves
-                FROM groupe g
-                INNER JOIN filiere f ON g.id_filiere = f.id_filiere
-                ORDER BY g.nom_groupe ASC";
-$groupes = pdf_fetch_all($conn, $sql_groupes);
+$groupes = [];
+if ($typeDemande === null || $typeDemande === 'Groupes') {
+    $sql_groupes = "SELECT g.nom_groupe,
+                           f.nom_filiere,
+                           g.capacite,
+                           (SELECT COUNT(*) FROM eleve e WHERE e.id_groupe = g.id_groupe) AS nb_eleves
+                    FROM groupe g
+                    INNER JOIN filiere f ON g.id_filiere = f.id_filiere
+                    ORDER BY g.nom_groupe ASC";
+    $groupes = pdf_fetch_all($conn, $sql_groupes);
+}
 
 /* --------------------------------------------------------------------
-   3) Tableau des derniers paiements (les 12 plus récents)
-      Le montant réellement payé n'est PAS stocké sur "paiement" : il se
-      calcule en sommant les lignes de la table "versement" liées.
+   3) Tableau des paiements
+      Affiché si : aucun type demandé (rapport complet, 12 derniers,
+      non filtré) OU type = "Paiements" (tous les paiements de la
+      période choisie, filtrés sur la date de paiement réelle).
    -------------------------------------------------------------------- */
-$sql_paiements = "SELECT p.id_paiement, e.nom, e.prenom, g.nom_groupe,
-                          p.montant_a_payer, p.statut,
-                          COALESCE(SUM(v.montant), 0) AS montant_paye
-                   FROM paiement p
-                   INNER JOIN eleve e ON p.id_eleve = e.id_eleve
-                   INNER JOIN groupe g ON e.id_groupe = g.id_groupe
-                   LEFT JOIN versement v ON v.id_paiement = p.id_paiement
-                   GROUP BY p.id_paiement, e.nom, e.prenom, g.nom_groupe,
-                            p.montant_a_payer, p.statut
-                   ORDER BY p.id_paiement DESC
-                   LIMIT ?";
-$derniers_paiements = pdf_fetch_all_params($conn, $sql_paiements, "i", [12]);
+$derniers_paiements = [];
+if ($typeDemande === null) {
+    $sql_paiements = "SELECT p.id_paiement, e.nom, e.prenom, g.nom_groupe,
+                              p.montant_a_payer, p.statut,
+                              COALESCE(SUM(v.montant), 0) AS montant_paye
+                       FROM paiement p
+                       INNER JOIN eleve e ON p.id_eleve = e.id_eleve
+                       INNER JOIN groupe g ON e.id_groupe = g.id_groupe
+                       LEFT JOIN versement v ON v.id_paiement = p.id_paiement
+                       GROUP BY p.id_paiement, e.nom, e.prenom, g.nom_groupe,
+                                p.montant_a_payer, p.statut
+                       ORDER BY p.id_paiement DESC
+                       LIMIT ?";
+    $derniers_paiements = pdf_fetch_all_params($conn, $sql_paiements, "i", [12]);
+} elseif ($typeDemande === 'Paiements') {
+    if ($filtreDatesActif) {
+        $sql_paiements = "SELECT p.id_paiement, e.nom, e.prenom, g.nom_groupe,
+                                  p.montant_a_payer, p.statut,
+                                  COALESCE(SUM(v.montant), 0) AS montant_paye
+                           FROM paiement p
+                           INNER JOIN eleve e ON p.id_eleve = e.id_eleve
+                           INNER JOIN groupe g ON e.id_groupe = g.id_groupe
+                           LEFT JOIN versement v ON v.id_paiement = p.id_paiement
+                           WHERE p.date_paiement IS NOT NULL
+                             AND DATE(p.date_paiement) BETWEEN ? AND ?
+                           GROUP BY p.id_paiement, e.nom, e.prenom, g.nom_groupe,
+                                    p.montant_a_payer, p.statut
+                           ORDER BY p.date_paiement DESC";
+        $derniers_paiements = pdf_fetch_all_params($conn, $sql_paiements, "ss", [$dateDebut, $dateFin]);
+    } else {
+        // Type demandé mais dates invalides/absentes : on retombe sur tous
+        // les paiements (non filtrés par date) plutôt que de planter.
+        $sql_paiements = "SELECT p.id_paiement, e.nom, e.prenom, g.nom_groupe,
+                                  p.montant_a_payer, p.statut,
+                                  COALESCE(SUM(v.montant), 0) AS montant_paye
+                           FROM paiement p
+                           INNER JOIN eleve e ON p.id_eleve = e.id_eleve
+                           INNER JOIN groupe g ON e.id_groupe = g.id_groupe
+                           LEFT JOIN versement v ON v.id_paiement = p.id_paiement
+                           GROUP BY p.id_paiement, e.nom, e.prenom, g.nom_groupe,
+                                    p.montant_a_payer, p.statut
+                           ORDER BY p.id_paiement DESC";
+        $derniers_paiements = pdf_fetch_all($conn, $sql_paiements);
+    }
+}
 
 /* --------------------------------------------------------------------
-   4) Tableau des dernières séances (les 12 plus récentes)
+   4) Tableau des séances (rapport complet uniquement — remplacé par
+      le tableau de présences détaillé quand type = "Présences")
    -------------------------------------------------------------------- */
-$sql_seances = "SELECT s.date_seance, s.heure_debut, s.heure_fin, g.nom_groupe, s.chapitre, s.statut
-                 FROM seance s
-                 INNER JOIN groupe g ON s.id_groupe = g.id_groupe
-                 ORDER BY s.date_seance DESC, s.heure_debut DESC
-                 LIMIT ?";
-$dernieres_seances = pdf_fetch_all_params($conn, $sql_seances, "i", [12]);
+$dernieres_seances = [];
+if ($typeDemande === null) {
+    $sql_seances = "SELECT s.date_seance, s.heure_debut, s.heure_fin, g.nom_groupe, s.chapitre, s.statut
+                     FROM seance s
+                     INNER JOIN groupe g ON s.id_groupe = g.id_groupe
+                     ORDER BY s.date_seance DESC, s.heure_debut DESC
+                     LIMIT ?";
+    $dernieres_seances = pdf_fetch_all_params($conn, $sql_seances, "i", [12]);
+}
+
+/* --------------------------------------------------------------------
+   4bis) Tableau de présences détaillé (élève par élève, séance par
+   séance) — n'existait pas avant. Affiché uniquement pour type =
+   "Présences", filtré sur la période choisie si elle est valide.
+   -------------------------------------------------------------------- */
+$presences_detail = [];
+if ($typeDemande === 'Présences') {
+    $sql_presences = "SELECT s.date_seance, s.heure_debut, s.heure_fin,
+                              g.nom_groupe, e.nom, e.prenom, pr.statut
+                       FROM presence pr
+                       INNER JOIN seance s ON pr.id_seance = s.id_seance
+                       INNER JOIN eleve e ON pr.id_eleve = e.id_eleve
+                       INNER JOIN groupe g ON s.id_groupe = g.id_groupe";
+    if ($filtreDatesActif) {
+        $sql_presences .= " WHERE s.date_seance BETWEEN ? AND ?
+                             ORDER BY s.date_seance DESC, s.heure_debut DESC";
+        $presences_detail = pdf_fetch_all_params($conn, $sql_presences, "ss", [$dateDebut, $dateFin]);
+    } else {
+        $sql_presences .= " ORDER BY s.date_seance DESC, s.heure_debut DESC LIMIT 50";
+        $presences_detail = pdf_fetch_all($conn, $sql_presences);
+    }
+}
 
 /* --------------------------------------------------------------------
    5) Tableau des élèves en attente de paiement
-      (mêmes règles que paiment.php : montant payé = somme des versements)
+      (état actuel, pas lié à une plage de dates — affiché pour le
+      rapport complet et pour le type "Paiements")
    -------------------------------------------------------------------- */
-$sql_attente = "SELECT p.id_paiement, e.nom, e.prenom, g.nom_groupe,
-                        p.montant_a_payer,
-                        COALESCE(SUM(v.montant), 0) AS montant_paye
-                 FROM paiement p
-                 INNER JOIN eleve e ON p.id_eleve = e.id_eleve
-                 INNER JOIN groupe g ON e.id_groupe = g.id_groupe
-                 LEFT JOIN versement v ON v.id_paiement = p.id_paiement
-                 WHERE p.statut = 'En attente'
-                 GROUP BY p.id_paiement, e.nom, e.prenom, g.nom_groupe, p.montant_a_payer
-                 ORDER BY p.id_paiement DESC";
-$eleves_attente = pdf_fetch_all($conn, $sql_attente);
+$eleves_attente = [];
+if ($typeDemande === null || $typeDemande === 'Paiements') {
+    $sql_attente = "SELECT p.id_paiement, e.nom, e.prenom, g.nom_groupe,
+                            p.montant_a_payer,
+                            COALESCE(SUM(v.montant), 0) AS montant_paye
+                     FROM paiement p
+                     INNER JOIN eleve e ON p.id_eleve = e.id_eleve
+                     INNER JOIN groupe g ON e.id_groupe = g.id_groupe
+                     LEFT JOIN versement v ON v.id_paiement = p.id_paiement
+                     WHERE p.statut = 'En attente'
+                     GROUP BY p.id_paiement, e.nom, e.prenom, g.nom_groupe, p.montant_a_payer
+                     ORDER BY p.id_paiement DESC";
+    $eleves_attente = pdf_fetch_all($conn, $sql_attente);
+}
 
 mysqli_close($conn);
 
@@ -385,6 +481,15 @@ $pdf->SetFont('Helvetica', '', 9.5);
 $pdf->SetTextColor(...COLOR_MUTED);
 $dateGeneration = date('d/m/Y \\à H:i:s');
 $pdf->Cell(0, 6, $pdf->txt('Genere le ' . $dateGeneration), 0, 1, 'L');
+
+if ($typeDemande !== null) {
+    $sousTitre = 'Type de rapport : ' . $typeDemande;
+    if ($filtreDatesActif) {
+        $sousTitre .= ' | Periode : du ' . date('d/m/Y', strtotime($dateDebut))
+                    . ' au ' . date('d/m/Y', strtotime($dateFin));
+    }
+    $pdf->Cell(0, 6, $pdf->txt($sousTitre), 0, 1, 'L');
+}
 $pdf->Ln(3);
 
 /* --- Cartes de statistiques (grille 3 x 2) ------------------------------- */
@@ -413,99 +518,156 @@ foreach ($stats as $i => $stat) {
 $pdf->SetY($cardY + 2 * (22 + $cardGap));
 
 /* --- Tableau des groupes -------------------------------------------------- */
-$pdf->SectionTitle('Tableau des groupes', COLOR_BLUE);
-$rowsGroupes = array_map(static function (array $g): array {
-    return [
-        'nom_groupe'  => $g['nom_groupe'],
-        'nom_filiere' => $g['nom_filiere'],
-        'capacite'    => $g['capacite'] !== null ? (string)$g['capacite'] : '-',
-        'nb_eleves'   => (string)$g['nb_eleves'],
-    ];
-}, $groupes);
-$pdf->DataTable(
-    [
-        ['key' => 'nom_groupe',  'label' => 'Groupe',       'width' => 55, 'align' => 'L'],
-        ['key' => 'nom_filiere', 'label' => 'Filiere',      'width' => 65, 'align' => 'L'],
-        ['key' => 'capacite',    'label' => 'Capacite',     'width' => 35, 'align' => 'C'],
-        ['key' => 'nb_eleves',   'label' => 'Nb. eleves',   'width' => 35, 'align' => 'C'],
-    ],
-    $rowsGroupes,
-    'Aucun groupe enregistre.'
-);
+if ($typeDemande === null || $typeDemande === 'Groupes') {
+    $pdf->SectionTitle('Tableau des groupes', COLOR_BLUE);
+    $rowsGroupes = array_map(static function (array $g): array {
+        return [
+            'nom_groupe'  => $g['nom_groupe'],
+            'nom_filiere' => $g['nom_filiere'],
+            'capacite'    => $g['capacite'] !== null ? (string)$g['capacite'] : '-',
+            'nb_eleves'   => (string)$g['nb_eleves'],
+        ];
+    }, $groupes);
+    $pdf->DataTable(
+        [
+            ['key' => 'nom_groupe',  'label' => 'Groupe',       'width' => 55, 'align' => 'L'],
+            ['key' => 'nom_filiere', 'label' => 'Filiere',      'width' => 65, 'align' => 'L'],
+            ['key' => 'capacite',    'label' => 'Capacite',     'width' => 35, 'align' => 'C'],
+            ['key' => 'nb_eleves',   'label' => 'Nb. eleves',   'width' => 35, 'align' => 'C'],
+        ],
+        $rowsGroupes,
+        'Aucun groupe enregistre.'
+    );
+}
 
-/* --- Tableau des derniers paiements ---------------------------------------- */
-$pdf->SectionTitle('Derniers paiements', COLOR_ORANGE);
-$rowsPaiements = array_map(static function (array $p): array {
-    return [
-        'eleve'        => $p['prenom'] . ' ' . $p['nom'],
-        'groupe'       => $p['nom_groupe'],
-        'montant_du'   => number_format((float)$p['montant_a_payer'], 2, ',', ' ') . ' DT',
-        'montant_paye' => number_format((float)$p['montant_paye'], 2, ',', ' ') . ' DT',
-        'statut'       => pdf_statut_paiement_libelle($p['statut']),
-    ];
-}, $derniers_paiements);
-$pdf->DataTable(
-    [
-        ['key' => 'eleve',        'label' => 'Eleve',         'width' => 50, 'align' => 'L'],
-        ['key' => 'groupe',       'label' => 'Groupe',        'width' => 30, 'align' => 'L'],
-        ['key' => 'montant_du',   'label' => 'Montant du',    'width' => 35, 'align' => 'R'],
-        ['key' => 'montant_paye', 'label' => 'Montant paye',  'width' => 35, 'align' => 'R'],
-        ['key' => 'statut',       'label' => 'Statut',        'width' => 40, 'align' => 'C'],
-    ],
-    $rowsPaiements,
-    'Aucun paiement enregistre.'
-);
+/* --- Tableau des paiements ---------------------------------------- */
+if ($typeDemande === null || $typeDemande === 'Paiements') {
+    $pdf->SectionTitle($typeDemande === null ? 'Derniers paiements' : 'Paiements de la periode', COLOR_ORANGE);
+    $rowsPaiements = array_map(static function (array $p): array {
+        return [
+            'eleve'        => $p['prenom'] . ' ' . $p['nom'],
+            'groupe'       => $p['nom_groupe'],
+            'montant_du'   => number_format((float)$p['montant_a_payer'], 2, ',', ' ') . ' DT',
+            'montant_paye' => number_format((float)$p['montant_paye'], 2, ',', ' ') . ' DT',
+            'statut'       => pdf_statut_paiement_libelle($p['statut']),
+        ];
+    }, $derniers_paiements);
+    $pdf->DataTable(
+        [
+            ['key' => 'eleve',        'label' => 'Eleve',         'width' => 50, 'align' => 'L'],
+            ['key' => 'groupe',       'label' => 'Groupe',        'width' => 30, 'align' => 'L'],
+            ['key' => 'montant_du',   'label' => 'Montant du',    'width' => 35, 'align' => 'R'],
+            ['key' => 'montant_paye', 'label' => 'Montant paye',  'width' => 35, 'align' => 'R'],
+            ['key' => 'statut',       'label' => 'Statut',        'width' => 40, 'align' => 'C'],
+        ],
+        $rowsPaiements,
+        'Aucun paiement enregistre pour cette periode.'
+    );
+}
 
-/* --- Tableau des dernières séances ------------------------------------------ */
-$pdf->SectionTitle('Dernieres seances', COLOR_GREEN);
-$rowsSeances = array_map(static function (array $s): array {
-    return [
-        'date'      => date('d/m/Y', strtotime($s['date_seance'])),
-        'horaire'   => substr($s['heure_debut'], 0, 5) . ' - ' . substr($s['heure_fin'], 0, 5),
-        'groupe'    => $s['nom_groupe'],
-        'chapitre'  => $s['chapitre'] ?: '-',
-        'statut'    => $s['statut'],
-    ];
-}, $dernieres_seances);
-$pdf->DataTable(
-    [
-        ['key' => 'date',     'label' => 'Date',     'width' => 25, 'align' => 'C'],
-        ['key' => 'horaire',  'label' => 'Horaire',  'width' => 30, 'align' => 'C'],
-        ['key' => 'groupe',   'label' => 'Groupe',   'width' => 30, 'align' => 'L'],
-        ['key' => 'chapitre', 'label' => 'Chapitre', 'width' => 65, 'align' => 'L'],
-        ['key' => 'statut',   'label' => 'Statut',   'width' => 40, 'align' => 'C'],
-    ],
-    $rowsSeances,
-    'Aucune seance enregistree.'
-);
+/* --- Tableau des dernières séances (rapport complet uniquement) ------------ */
+if ($typeDemande === null) {
+    $pdf->SectionTitle('Dernieres seances', COLOR_GREEN);
+    $rowsSeances = array_map(static function (array $s): array {
+        return [
+            'date'      => date('d/m/Y', strtotime($s['date_seance'])),
+            'horaire'   => substr($s['heure_debut'], 0, 5) . ' - ' . substr($s['heure_fin'], 0, 5),
+            'groupe'    => $s['nom_groupe'],
+            'chapitre'  => $s['chapitre'] ?: '-',
+            'statut'    => $s['statut'],
+        ];
+    }, $dernieres_seances);
+    $pdf->DataTable(
+        [
+            ['key' => 'date',     'label' => 'Date',     'width' => 25, 'align' => 'C'],
+            ['key' => 'horaire',  'label' => 'Horaire',  'width' => 30, 'align' => 'C'],
+            ['key' => 'groupe',   'label' => 'Groupe',   'width' => 30, 'align' => 'L'],
+            ['key' => 'chapitre', 'label' => 'Chapitre', 'width' => 65, 'align' => 'L'],
+            ['key' => 'statut',   'label' => 'Statut',   'width' => 40, 'align' => 'C'],
+        ],
+        $rowsSeances,
+        'Aucune seance enregistree.'
+    );
+}
+
+/* --- Tableau des présences (type = "Présences") ----------------------------- */
+if ($typeDemande === 'Présences') {
+    $pdf->SectionTitle('Presences de la periode', COLOR_GREEN);
+    $rowsPresences = array_map(static function (array $p): array {
+        return [
+            'date'     => date('d/m/Y', strtotime($p['date_seance'])),
+            'horaire'  => substr($p['heure_debut'], 0, 5) . ' - ' . substr($p['heure_fin'], 0, 5),
+            'groupe'   => $p['nom_groupe'],
+            'eleve'    => $p['prenom'] . ' ' . $p['nom'],
+            'statut'   => $p['statut'],
+        ];
+    }, $presences_detail);
+    $pdf->DataTable(
+        [
+            ['key' => 'date',    'label' => 'Date',    'width' => 25, 'align' => 'C'],
+            ['key' => 'horaire', 'label' => 'Horaire', 'width' => 30, 'align' => 'C'],
+            ['key' => 'groupe',  'label' => 'Groupe',  'width' => 30, 'align' => 'L'],
+            ['key' => 'eleve',   'label' => 'Eleve',   'width' => 55, 'align' => 'L'],
+            ['key' => 'statut',  'label' => 'Statut',  'width' => 30, 'align' => 'C'],
+        ],
+        $rowsPresences,
+        'Aucune presence enregistree pour cette periode.'
+    );
+}
+
+/* --- Type "Notes" : fonctionnalité non implémentée dans l'application ------
+   Il n'existe aucune table de notes/évaluations dans la base actuelle.
+   On le dit clairement dans le PDF plutôt que de générer un rapport vide
+   ou trompeur qui laisserait croire que la donnée existe. ------------------ */
+if ($typeDemande === 'Notes') {
+    $pdf->SectionTitle('Notes', COLOR_PINK);
+    $pdf->SetFont('Helvetica', 'I', 10);
+    $pdf->SetTextColor(...COLOR_MUTED);
+    $pdf->MultiCell(0, 6, $pdf->txt(
+        "La gestion des notes n'est pas encore disponible dans SmartTeacher. " .
+        "Cette section sera activee des que la fonctionnalite sera developpee."
+    ));
+    $pdf->Ln(2);
+}
 
 /* --- Tableau des élèves en attente de paiement ------------------------------ */
-$pdf->SectionTitle('Eleves en attente de paiement', COLOR_PINK);
-$rowsAttente = array_map(static function (array $a): array {
-    $reste = (float)$a['montant_a_payer'] - (float)$a['montant_paye'];
-    return [
-        'eleve'   => $a['prenom'] . ' ' . $a['nom'],
-        'groupe'  => $a['nom_groupe'],
-        'du'      => number_format((float)$a['montant_a_payer'], 2, ',', ' ') . ' DT',
-        'paye'    => number_format((float)$a['montant_paye'], 2, ',', ' ') . ' DT',
-        'reste'   => number_format($reste, 2, ',', ' ') . ' DT',
-    ];
-}, $eleves_attente);
-$pdf->DataTable(
-    [
-        ['key' => 'eleve',  'label' => 'Eleve',           'width' => 50, 'align' => 'L'],
-        ['key' => 'groupe', 'label' => 'Groupe',          'width' => 30, 'align' => 'L'],
-        ['key' => 'du',     'label' => 'Montant du',      'width' => 35, 'align' => 'R'],
-        ['key' => 'paye',   'label' => 'Montant paye',    'width' => 35, 'align' => 'R'],
-        ['key' => 'reste',  'label' => 'Reste a payer',   'width' => 40, 'align' => 'R'],
-    ],
-    $rowsAttente,
-    'Aucun eleve en attente de paiement.'
-);
+if ($typeDemande === null || $typeDemande === 'Paiements') {
+    $pdf->SectionTitle('Eleves en attente de paiement', COLOR_PINK);
+    $rowsAttente = array_map(static function (array $a): array {
+        $reste = (float)$a['montant_a_payer'] - (float)$a['montant_paye'];
+        return [
+            'eleve'   => $a['prenom'] . ' ' . $a['nom'],
+            'groupe'  => $a['nom_groupe'],
+            'du'      => number_format((float)$a['montant_a_payer'], 2, ',', ' ') . ' DT',
+            'paye'    => number_format((float)$a['montant_paye'], 2, ',', ' ') . ' DT',
+            'reste'   => number_format($reste, 2, ',', ' ') . ' DT',
+        ];
+    }, $eleves_attente);
+    $pdf->DataTable(
+        [
+            ['key' => 'eleve',  'label' => 'Eleve',           'width' => 50, 'align' => 'L'],
+            ['key' => 'groupe', 'label' => 'Groupe',          'width' => 30, 'align' => 'L'],
+            ['key' => 'du',     'label' => 'Montant du',      'width' => 35, 'align' => 'R'],
+            ['key' => 'paye',   'label' => 'Montant paye',    'width' => 35, 'align' => 'R'],
+            ['key' => 'reste',  'label' => 'Reste a payer',   'width' => 40, 'align' => 'R'],
+        ],
+        $rowsAttente,
+        'Aucun eleve en attente de paiement.'
+    );
+}
 
 /* --------------------------------------------------------------------
    Téléchargement automatique du PDF
    -------------------------------------------------------------------- */
-$filename = 'rapport_smartteacher_' . date('Y-m-d_His') . '.pdf';
+$filenameBase = 'rapport_smartteacher';
+if ($typeDemande !== null) {
+    $filenameBase .= '_' . strtolower(str_replace(
+        ['é', 'è', ' '], ['e', 'e', '_'], $typeDemande
+    ));
+    if ($filtreDatesActif) {
+        $filenameBase .= '_' . $dateDebut . '_au_' . $dateFin;
+    }
+}
+$filename = $filenameBase . '_' . date('Y-m-d_His') . '.pdf';
 $pdf->Output('D', $filename);
 exit;

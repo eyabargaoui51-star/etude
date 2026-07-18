@@ -1126,8 +1126,16 @@ function initModalSystem() {
       ],
       onSubmit: (data) => {
         if (data.format === 'PDF') {
-          window.open('export_rapport.php', '_blank');
-          return { success: true, message: '📄 Le rapport PDF a été généré et téléchargé.' };
+          if (data.dateFin < data.dateDebut) {
+            return { success: false, message: '⚠️ La date de fin doit être postérieure à la date de début.' };
+          }
+          const params = new URLSearchParams({
+            type: data.type,
+            dateDebut: data.dateDebut,
+            dateFin: data.dateFin,
+          });
+          window.open('export_rapport.php?' + params.toString(), '_blank');
+          return { success: true, message: '📄 Le rapport PDF (' + data.type + ') a été généré et téléchargé.' };
         }
         return { success: false, message: "⚠️ L'export Excel n'est pas encore disponible. Choisissez le format PDF." };
       },
