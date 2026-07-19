@@ -14,10 +14,19 @@
    ============================================================ */
 
 $host_actuel = $_SERVER['HTTP_HOST'] ?? '';
+// Les domaines ngrok (*.ngrok-free.dev, etc.) sont traites comme "local" car
+// ils ne font que rediriger vers XAMPP sur ce PC - c'est une solution
+// temporaire pour donner un acces de demo au professeur, pas un vrai
+// hebergement. A retirer une fois le vrai hebergement (InfinityFree/autre)
+// en place, si ngrok n'est plus utilise.
 $isLocal = (
     $host_actuel === '' ||
     strpos($host_actuel, 'localhost') !== false ||
-    strpos($host_actuel, '127.0.0.1') !== false
+    strpos($host_actuel, '127.0.0.1') !== false ||
+    strpos($host_actuel, 'ngrok-free.dev') !== false ||
+    strpos($host_actuel, 'ngrok-free.app') !== false ||
+    strpos($host_actuel, 'ngrok.io') !== false ||
+    strpos($host_actuel, 'ngrok.app') !== false
 );
 
 define('APP_ENV', $isLocal ? 'local' : 'production');

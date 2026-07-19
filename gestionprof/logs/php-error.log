@@ -1,0 +1,36 @@
+[19-Jul-2026 18:37:19 Europe/Berlin] PHP Fatal error:  Uncaught mysqli_sql_exception: Access denied for user 'À_REMPLACER'@'localhost' (using password: YES) in C:\xampp\htdocs\lansyyy_jaw\gestionprof\config\database.php:66
+Stack trace:
+#0 C:\xampp\htdocs\lansyyy_jaw\gestionprof\config\database.php(66): mysqli->__construct('localhost', '\xC3\x80_REMPLACER', Object(SensitiveParameterValue), '\xC3\x80_REMPLACER')
+#1 C:\xampp\htdocs\lansyyy_jaw\gestionprof\pages\login.php(5): require_once('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\lansyyy_jaw\gestionprof\config\database.php on line 66
+[19-Jul-2026 18:37:19 Europe/Berlin] PHP Fatal error:  Uncaught mysqli_sql_exception: Access denied for user 'À_REMPLACER'@'localhost' (using password: YES) in C:\xampp\htdocs\lansyyy_jaw\gestionprof\config\database.php:66
+Stack trace:
+#0 C:\xampp\htdocs\lansyyy_jaw\gestionprof\config\database.php(66): mysqli->__construct('localhost', '\xC3\x80_REMPLACER', Object(SensitiveParameterValue), '\xC3\x80_REMPLACER')
+#1 C:\xampp\htdocs\lansyyy_jaw\gestionprof\pages\login.php(5): require_once('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\lansyyy_jaw\gestionprof\config\database.php on line 66
+[19-Jul-2026 18:37:22 Europe/Berlin] PHP Fatal error:  Uncaught mysqli_sql_exception: Access denied for user 'À_REMPLACER'@'localhost' (using password: YES) in C:\xampp\htdocs\lansyyy_jaw\gestionprof\config\database.php:66
+Stack trace:
+#0 C:\xampp\htdocs\lansyyy_jaw\gestionprof\config\database.php(66): mysqli->__construct('localhost', '\xC3\x80_REMPLACER', Object(SensitiveParameterValue), '\xC3\x80_REMPLACER')
+#1 C:\xampp\htdocs\lansyyy_jaw\gestionprof\pages\login.php(5): require_once('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\lansyyy_jaw\gestionprof\config\database.php on line 66
+[19-Jul-2026 18:37:23 Europe/Berlin] PHP Fatal error:  Uncaught mysqli_sql_exception: Access denied for user 'À_REMPLACER'@'localhost' (using password: YES) in C:\xampp\htdocs\lansyyy_jaw\gestionprof\config\database.php:66
+Stack trace:
+#0 C:\xampp\htdocs\lansyyy_jaw\gestionprof\config\database.php(66): mysqli->__construct('localhost', '\xC3\x80_REMPLACER', Object(SensitiveParameterValue), '\xC3\x80_REMPLACER')
+#1 C:\xampp\htdocs\lansyyy_jaw\gestionprof\pages\login.php(5): require_once('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\lansyyy_jaw\gestionprof\config\database.php on line 66
+[19-Jul-2026 18:38:57 Europe/Berlin] PHP Fatal error:  Uncaught mysqli_sql_exception: Access denied for user 'À_REMPLACER'@'localhost' (using password: YES) in C:\xampp\htdocs\lansyyy_jaw\gestionprof\config\database.php:66
+Stack trace:
+#0 C:\xampp\htdocs\lansyyy_jaw\gestionprof\config\database.php(66): mysqli->__construct('localhost', '\xC3\x80_REMPLACER', Object(SensitiveParameterValue), '\xC3\x80_REMPLACER')
+#1 C:\xampp\htdocs\lansyyy_jaw\gestionprof\pages\login.php(5): require_once('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\lansyyy_jaw\gestionprof\config\database.php on line 66
+[19-Jul-2026 18:38:58 Europe/Berlin] PHP Fatal error:  Uncaught mysqli_sql_exception: Access denied for user 'À_REMPLACER'@'localhost' (using password: YES) in C:\xampp\htdocs\lansyyy_jaw\gestionprof\config\database.php:66
+Stack trace:
+#0 C:\xampp\htdocs\lansyyy_jaw\gestionprof\config\database.php(66): mysqli->__construct('localhost', '\xC3\x80_REMPLACER', Object(SensitiveParameterValue), '\xC3\x80_REMPLACER')
+#1 C:\xampp\htdocs\lansyyy_jaw\gestionprof\pages\login.php(5): require_once('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\lansyyy_jaw\gestionprof\config\database.php on line 66
